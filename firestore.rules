@@ -22,12 +22,15 @@ service cloud.firestore {
     function admin() { return membro() && (dono() || papel() == 'admin'); }
     function edita() { return membro() && (dono() || papel() != 'leitor'); }
 
-    // Páginas e itens. lock == true: só administradores leem e alteram.
+    // Páginas e itens. lock == false: todo o time. lock == true: só quem está em acl, além dos administradores.
     match /pages/{id} {
-      allow read: if admin() || (membro() && resource.data.lock == false);
-      allow create: if admin() || (edita() && request.resource.data.lock == false);
-      allow update: if admin() || (edita() && resource.data.lock == false && request.resource.data.lock == false);
-      allow delete: if admin() || (edita() && resource.data.lock == false);
+      allow read: if admin() || (membro() && (resource.data.lock == false || email() in resource.data.acl));
+      allow create: if admin() || (edita() && (request.resource.data.lock == false || email() in request.resource.data.acl));
+      allow update: if admin() || (edita()
+        && (resource.data.lock == false || email() in resource.data.acl)
+        && request.resource.data.lock == resource.data.lock
+        && request.resource.data.get('acl', []) == resource.data.get('acl', []));
+      allow delete: if admin() || (edita() && (resource.data.lock == false || email() in resource.data.acl));
     }
 
     // Quem já entrou e o papel de cada um. Só administradores mudam papéis.

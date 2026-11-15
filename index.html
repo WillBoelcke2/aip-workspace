@@ -147,7 +147,7 @@ svg.ic{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-wid
 
 /* ---------- menus e popovers ---------- */
 #pops{position:fixed;inset:0;pointer-events:none;z-index:50}
-.pop{position:fixed;pointer-events:auto;background:var(--hover);border-radius:10px;box-shadow:var(--shadow);padding:6px;min-width:220px;max-width:min(340px,calc(100vw - 16px));max-height:min(420px,calc(100vh - 16px));overflow:auto;font-size:14px}
+.pop{position:fixed;pointer-events:auto;background:var(--hover);border-radius:10px;box-shadow:var(--shadow);padding:6px;min-width:220px;max-width:min(340px,calc(100vw - 16px));max-height:min(560px,calc(100vh - 16px));overflow:auto;font-size:14px}
 .pop h6{margin:6px 8px 4px;font:400 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
 .mi{display:flex;align-items:center;gap:10px;width:100%;padding:6px 8px;border-radius:var(--r-s);min-height:32px}
 .mi:hover,.mi.sel{background:var(--active)}
@@ -513,7 +513,7 @@ const isRow=p=>!!(p&&p.parent&&page(p.parent)?.kind==="db");
 function alive(p){let n=p,i=0;while(n&&i++<40){if(n.trashed)return false;if(!n.parent)return true;n=page(n.parent);}return false;}
 function path(p){const out=[];let n=p,i=0;while(n&&i++<40){out.unshift(n);n=n.parent?page(n.parent):null;}return out;}
 
-function save(p){p.ts=Date.now();p.sid=S.sid;if(me)p.by=me.email;if(typeof p.lock!=="boolean")p.lock=!!(p.parent&&page(p.parent)&&page(p.parent).lock);S.pages.set(p.id,p);queue(p.id);}
+function save(p){p.ts=Date.now();p.sid=S.sid;if(me)p.by=me.email;if(typeof p.lock!=="boolean"){const par=p.parent&&page(p.parent);p.lock=!!(par&&par.lock);p.acl=par&&par.lock&&Array.isArray(par.acl)?par.acl.slice():[];}if(!Array.isArray(p.acl))p.acl=[];S.pages.set(p.id,p);queue(p.id);}
 function queue(id,now){dirty.add(id);status();clearTimeout(timers.get(id));timers.set(id,setTimeout(()=>flush(id),now?0:650));}
 function flush(id){
   timers.delete(id);
@@ -535,9 +535,14 @@ function writeErr(e){
 function drop(id){S.pages.delete(id);queue(id,true);}
 function purge(id){kids(id).concat([...S.pages.values()].filter(p=>p.parent===id&&p.trashed)).forEach(c=>purge(c.id));drop(id);}
 
-function onSnap(snap){
+let feeds=[];
+function onSnap(snap,k,total){
+  feeds[k]={docs:snap.docs,cache:!!snap.metadata.fromCache};
+  for(let i=0;i<total;i++)if(!feeds[i])return; // espera todas as consultas responderem uma vez
   clearTimeout(loadT);S.slow=false;
-  const seen=new Set(),changed=new Set();
+  const seen=new Set(),changed=new Set(),all=new Map();
+  feeds.slice(0,total).forEach(f=>f.docs.forEach(d=>all.set(d.id,d)));
+  snap={docs:[...all.values()],metadata:{fromCache:feeds.slice(0,total).some(f=>f.cache)}};
   snap.docs.forEach(d=>{
     seen.add(d.id);if(dirty.has(d.id))return;
     const data=JSON.parse(JSON.stringify(d.data()||{}));data.id=d.id;
@@ -637,7 +642,7 @@ function node(p,d,flat){
   const has=p.kind!=="db"&&kids(p.id).length>0;
   const tw=el("button",{class:"tw"+(S.open.has(p.id)?" open":""),"aria-label":"Expandir",style:{visibility:has&&!flat?"visible":"hidden"},onclick:()=>{S.open.has(p.id)?S.open.delete(p.id):S.open.add(p.id);renderSide();}},icon("chev"));
   return el("div",{class:"node"+(p.id===S.cur?" on":""),style:{"--d":d}},tw,
-    el("a",{href:"#p-"+p.id,title:(p.title||"Sem título")+(p.lock?" (restrito a administradores)":"")},monogram(p),el("span",null,p.title||"Sem título"),p.lock&&(()=>{const i=icon("lock");i.classList.add("lk");return i;})()),
+    el("a",{href:"#p-"+p.id,title:(p.title||"Sem título")+(p.lock?" (acesso restrito)":"")},monogram(p),el("span",null,p.title||"Sem título"),p.lock&&(()=>{const i=icon("lock");i.classList.add("lk");return i;})()),
     el("div",{class:"acts"},
       p.kind!=="db"&&el("button",{title:"Adicionar subpágina","aria-label":"Adicionar subpágina",onclick:()=>go(newPage(p.id,"page").id)},icon("plus")),
       el("button",{title:"Mais opções","aria-label":"Mais opções",onclick:e=>pageMenu(e.currentTarget,p)},icon("dots"))));
@@ -647,22 +652,38 @@ function pageMenu(anchor,p){
     mi(p.fav?"Remover dos favoritos":"Adicionar aos favoritos","star",()=>{p.fav=!p.fav;save(p);renderAll();}),
     p.kind!=="db"&&mi("Nova subpágina","page",()=>go(newPage(p.id,"page").id)),
     p.kind!=="db"&&mi("Nova base de dados aqui","db",()=>go(newPage(p.id,"db").id)),
-    S.roles&&S.admin&&mi(p.lock?"Liberar para todo o time":"Restringir a administradores","lock",()=>setLock(p,!p.lock)),
+    S.roles&&S.admin&&mi("Quem pode acessar","lock",()=>accessPop(anchor.getBoundingClientRect(),p)),
     el("hr"),mi("Mover para a lixeira","trash",()=>trash(p.id),"danger")]);
 }
-function setLock(p,on){
+function setAccess(p,lock,acl){
   const ids=new Set([p.id]);let grew=true;
   while(grew){grew=false;S.pages.forEach(x=>{if(x.parent&&ids.has(x.parent)&&!ids.has(x.id)){ids.add(x.id);grew=true;}});}
-  ids.forEach(id=>{const x=page(id);x.lock=on;save(x);});renderAll();
-  toast(on?`Restrito a administradores (${ids.size} ${ids.size===1?"página":"páginas e itens"}).`:"Liberado para todo o time.");
+  ids.forEach(id=>{const x=page(id);x.lock=lock;x.acl=lock?acl.slice():[];save(x);});renderAll();
+  toast(lock?`Acesso restrito a ${acl.length} ${acl.length===1?"pessoa":"pessoas"}, além dos administradores.`:"Liberado para todo o time.");
 }
-function trashPop(anchor){
-  const list=[...S.pages.values()].filter(p=>p.trashed);
-  pop(anchor,[el("h6",null,"Lixeira"),
-    !list.length&&el("div",{class:"none"},"A lixeira está vazia."),
-    list.map(p=>el("div",{class:"mi"},monogram(p),el("span",{style:{flex:"1","min-width":"0",overflow:"hidden","text-overflow":"ellipsis","white-space":"nowrap"}},p.title||"Sem título"),
-      el("button",{class:"btn","data-w":1,onclick:()=>{delete p.trashed;if(p.parent&&!page(p.parent))p.parent=null;save(p);closePop();renderAll();}},"Restaurar"),
-      el("button",{class:"btn","data-w":1,title:"Excluir para sempre","aria-label":"Excluir para sempre",onclick:()=>{purge(p.id);closePop();renderAll();}},icon("x"))))]);
+async function accessPop(rect,p){
+  const box=el("div",{style:{"min-width":"300px"}},el("h6",null,"Quem pode acessar"),el("div",{class:"none"},"Carregando…"));pop(rect,box,{focus:"x-none"});
+  let people=[];try{const q=await db.collection("members").get();people=q.docs.map(d=>Object.assign({id:d.id},d.data()));}catch(_){}
+  box.lastChild.remove();
+  let lock=!!p.lock;const chosen=new Set((p.acl||[]).map(x=>String(x).toLowerCase()));
+  const known=new Map(people.map(m=>[m.id.toLowerCase(),m]));chosen.forEach(e=>{if(!known.has(e))known.set(e,{id:e,name:""});});
+  const dom=CFG.domain?"@"+CFG.domain.toLowerCase():"",list=el("div"),head=el("div");
+  const draw=()=>{head.textContent="";list.textContent="";
+    head.append(el("button",{class:"mi",role:"radio","aria-checked":String(!lock),onclick:()=>{lock=false;draw();}},"Todo o time",!lock&&el("span",{class:"ck"},icon("check"))),
+      el("button",{class:"mi",role:"radio","aria-checked":String(lock),onclick:()=>{lock=true;draw();}},"Só pessoas selecionadas",lock&&el("span",{class:"ck"},icon("check"))));
+    if(!lock)return;
+    list.append(el("hr"),el("div",{class:"none"},"Administradores sempre têm acesso."));
+    [...known.values()].sort((a,b)=>String(a.name||a.id).localeCompare(String(b.name||b.id))).forEach(m=>{const e=m.id.toLowerCase(),adm=e===String(S.owner||"").toLowerCase()||m.role==="admin";
+      list.append(el("button",{class:"mi",role:"checkbox","aria-checked":String(adm||chosen.has(e)),disabled:adm,onclick:()=>{chosen.has(e)?chosen.delete(e):chosen.add(e);draw();}},
+        el("span",{style:{flex:"1","min-width":"0",overflow:"hidden","text-overflow":"ellipsis","white-space":"nowrap"}},m.name||m.id,adm?" (administrador)":""),(adm||chosen.has(e))&&el("span",{class:"ck"},icon("check"))));});
+    const add=el("input",{class:"inp",id:"acl-add",placeholder:"E-mail de quem ainda não entrou","aria-label":"Adicionar pessoa por e-mail",inputMode:"email"});
+    add.addEventListener("keydown",ev=>{if(ev.key!=="Enter")return;const e=add.value.trim().toLowerCase();
+      if(!/^[^@\s]+@[^@\s]+$/.test(e)||(dom&&!e.endsWith(dom)))return toast("Digite um e-mail "+(dom||"válido")+".");
+      if(!known.has(e))known.set(e,{id:e,name:""});chosen.add(e);draw();const n=$("#acl-add");if(n)n.focus();});
+    list.append(el("div",{class:"field"},add));};
+  draw();
+  box.append(head,list,el("hr"),el("div",{class:"field"},el("button",{class:"btn pri",onclick:()=>{closePop();setAccess(p,lock,[...chosen]);}},"Salvar acesso")),
+    el("div",{class:"none"},"Vale para tudo que estiver dentro desta página."));
 }
 
 /* ============ topo ============ */
@@ -1376,7 +1397,7 @@ async function signIn(){
 }
 function start(){
   // com papéis ativos, todo documento precisa do campo lock para a consulta dos não administradores
-  if(S.roles&&S.admin)S.pages.forEach(p=>{if(typeof p.lock!=="boolean"){p.lock=false;queue(p.id,true);}});
+  if(S.roles&&S.admin)S.pages.forEach(p=>{if(typeof p.lock!=="boolean"||!Array.isArray(p.acl)){p.lock=!!p.lock;if(!Array.isArray(p.acl))p.acl=[];queue(p.id,true);}});
   route();
 }
 function boot(){
@@ -1392,11 +1413,13 @@ function boot(){
     loadT=setTimeout(()=>{if(S.mode==="loading"){S.slow=true;renderMain();}},10000);
     loadAccess().then(()=>{
     if(me!==u)return;S.ro=S.roles&&S.role==="leitor";
-    const q=!S.roles||S.admin?db.collection("pages"):db.collection("pages").where("lock","==",false);
-    unsub=q.onSnapshot(onSnap,e=>{clearTimeout(loadT);
+    const col=db.collection("pages"),qs=!S.roles||S.admin?[col]:[col.where("lock","==",false),col.where("acl","array-contains",me.email)];
+    feeds=[];
+    const offs=qs.map((q,k)=>q.onSnapshot(sn=>onSnap(sn,k,qs.length),e=>{clearTimeout(loadT);
       S.err=e&&e.code==="permission-denied"?"Sem permissão para ler os dados":"Sem conexão com os dados";
       if(e&&e.code==="permission-denied")toast("O banco recusou a leitura. Publique as regras do arquivo firestore.rules no Firebase.");
-      if(S.mode==="loading"){S.mode="cloud";S.ro=true;start();}status();});
+      if(S.mode==="loading"){S.mode="cloud";S.ro=true;start();}status();}));
+    unsub=()=>offs.forEach(f=>f());
     });
   });
 }

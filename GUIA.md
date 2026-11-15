@@ -81,7 +81,7 @@ Depende das regras novas do arquivo `firestore.rules` (Firestore, aba Regras, co
 
 - **Dono**: a primeira conta do domínio que entrar no app depois de publicar as regras novas. Entre você primeiro, antes de enviar o link ao time.
 - **Papéis**: Administrador, Editor (padrão de quem entra) e Leitor. O dono e os administradores mudam os papéis em: seu nome, no rodapé, **Pessoas e acessos**. A lista mostra quem já entrou pelo menos uma vez.
-- **Restringir uma área**: no menu `...` de uma página ou base, **Restringir a administradores**. Vale para tudo que estiver dentro dela, inclusive itens novos.
+- **Quem pode acessar**: no menu `...` de uma página ou base, escolha **Todo o time** ou **Só pessoas selecionadas**. Vale para tudo que estiver dentro dela, inclusive itens novos. Administradores sempre têm acesso, e só eles mudam essa configuração.
 
 Se algo der errado depois de publicar as regras novas, volte às regras anteriores (abaixo) e publique de novo. O app continua funcionando sem papéis.
 
