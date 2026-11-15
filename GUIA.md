@@ -113,3 +113,20 @@ Limite de 25 MB por arquivo. O link de cada arquivo é longo e impossível de ad
 ## Painel
 
 O item **Painel** na barra lateral calcula, a partir das bases que cada pessoa pode ver: metas e progresso (pelos campos Atual e Alvo, ou pelas tarefas vinculadas), distribuição do pipeline, projetos e tarefas por status, tarefas abertas por pessoa e prazos.
+
+## Drive e Gmail nas páginas
+
+No menu `/` há **Arquivo do Google Drive** e **E-mail do Gmail**. Cada um abre uma busca na conta de quem está usando (só leitura) e insere um link na página. Configuração única:
+
+1. Ative a Drive API: https://console.cloud.google.com/apis/library/drive.googleapis.com?project=aip-workspace
+2. Ative a Gmail API: https://console.cloud.google.com/apis/library/gmail.googleapis.com?project=aip-workspace
+3. O tipo de usuário do app deve estar como **Interno** (mesmo passo da Google Agenda).
+
+## Histórico de versões
+
+Menu `...` de uma página, **Histórico de versões**. O app guarda o estado anterior a cada rodada de edição, no máximo uma versão a cada 10 minutos por página, e permite restaurar. Depende das regras atuais do arquivo `firestore.rules`.
+
+## Modelos e comentários
+
+- Ao abrir uma página ou item vazio aparecem os modelos (ata, 1:1, conselho, ficha de conta). Em um item de base, `...` → **Salvar como modelo desta base** cria um modelo próprio daquela base.
+- Toda página e item tem comentários no fim. Use `@` para citar alguém; a pessoa vê a citação na página Hoje.

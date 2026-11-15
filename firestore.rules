@@ -33,6 +33,16 @@ service cloud.firestore {
       allow delete: if admin() || (edita() && (resource.data.lock == false || email() in resource.data.acl));
     }
 
+    // Histórico de versões: mesma visibilidade da página a que pertence.
+    match /pages/{id}/versions/{v} {
+      allow read: if admin() || (membro()
+        && (get(/databases/$(database)/documents/pages/$(id)).data.lock == false
+          || email() in get(/databases/$(database)/documents/pages/$(id)).data.acl));
+      allow create, delete: if admin() || (edita()
+        && (get(/databases/$(database)/documents/pages/$(id)).data.lock == false
+          || email() in get(/databases/$(database)/documents/pages/$(id)).data.acl));
+    }
+
     // Quem já entrou e o papel de cada um. Só administradores mudam papéis.
     match /members/{m} {
       allow read: if membro();
