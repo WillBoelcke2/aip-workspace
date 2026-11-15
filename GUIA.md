@@ -130,3 +130,13 @@ Menu `...` de uma página, **Histórico de versões**. O app guarda o estado ant
 
 - Ao abrir uma página ou item vazio aparecem os modelos (ata, 1:1, conselho, ficha de conta). Em um item de base, `...` → **Salvar como modelo desta base** cria um modelo próprio daquela base.
 - Toda página e item tem comentários no fim. Use `@` para citar alguém; a pessoa vê a citação na página Hoje.
+
+## CRM comercial
+
+Em **Nova base de dados** há o modelo **CRM comercial**: fases de qualificação (Lead, Qualificação, Diagnóstico, Proposta, Negociação, Contrato, Piloto pagante, Cliente, Perdido) e campos estruturados (CNPJ, ICP, ponto focal, produto, modelo de negócio, responsável comercial, valor do contrato, previsão de assinatura por trimestre e a próxima tarefa com prazo e responsável).
+
+- Cada fase tem campos esperados; o que falta aparece no item e no cartão do funil.
+- Todo lead novo já nasce com a ficha de qualificação no corpo da página.
+- O funil soma o valor por fase; o Painel mostra o valor em aberto por fase e por trimestre; a página Hoje mostra as próximas tarefas de cada responsável.
+- Fases, opções de ICP, produto e modelo de negócio são editáveis: clique no cabeçalho da coluna ou no próprio campo.
+- Com o CRM vazio, o app oferece trazer as contas da base Pipeline comercial.

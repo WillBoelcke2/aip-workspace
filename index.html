@@ -449,6 +449,9 @@ td:hover .reladd,.pval .reladd,.reladd:focus-visible{opacity:1}
 .gres .mi{display:grid;grid-template-columns:minmax(0,1fr);gap:0}
 .gres .mi span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gres .mi small{margin:0;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.missing{color:#96600A;background:#FFF6E5;border-radius:var(--r-s);padding:8px 12px;font-size:13px;margin-bottom:8px}
+.card .pend{color:#96600A;font-size:12px}
+.col-h em{font-style:normal;color:var(--muted);font-size:12px;margin-left:auto;font-variant-numeric:tabular-nums}
 .ev.g{border-style:dashed;border-color:var(--line-2);color:var(--muted);background:none;display:flex;gap:6px}
 .ev.g b{font-weight:400;color:var(--faint);font-variant-numeric:tabular-nums;flex:none}
 .ev.g span{overflow:hidden;text-overflow:ellipsis}
@@ -637,13 +640,31 @@ function personOpts(){for(const d of S.pages.values())if(d.kind==="db"&&alive(d)
 function fromTemplate(kind){
   const O=(name,color)=>({id:rid(),name,color}),V=(name,type,x)=>Object.assign({id:rid(),name,type},x||{});
   const find=fn=>[...S.pages.values()].find(d=>d.kind==="db"&&alive(d)&&fn(d)),rel=(name,db)=>({id:rid(),name,type:"relation",db:db.id});
-  const p=newPage(null,"db",kind==="tarefas"?"Tarefas":"Metas"),st=rid(),who=rid(),due=rid();p.tpl=kind;
+  const p=newPage(null,"db",{tarefas:"Tarefas",metas:"Metas",crm:"CRM comercial"}[kind]),st=rid(),who=rid(),due=rid();p.tpl=kind;
   if(kind==="tarefas"){
     p.schema={props:[{id:"title",name:"Tarefa",type:"title"},{id:st,name:"Status",type:"status",options:[O("A fazer","gray"),O("Em andamento","yellow"),O("Bloqueada","pink"),O("Concluída","mint")]},
       {id:who,name:"Responsável",type:"person",options:personOpts()},{id:due,name:"Prazo",type:"date"},{id:rid(),name:"Prioridade",type:"select",options:[O("Alta","pink"),O("Média","yellow"),O("Baixa","gray")]}]};
     const metas=find(d=>d.tpl==="metas"),proj=find(d=>norm(d.title)==="projetos"),reun=find(d=>norm(d.title)==="reunioes");
     if(metas)p.schema.props.push(rel("Meta",metas));if(proj)p.schema.props.push(rel("Projeto",proj));if(reun)p.schema.props.push(rel("Reunião",reun));
     p.views=[V("Quadro","board",{group:st}),V("Todas","table"),V("Por responsável","board",{group:who}),V("Prazos","calendar",{dateProp:due})];
+  }else if(kind==="crm"){
+    const fases=[["Lead","gray"],["Qualificação","mist"],["Diagnóstico","purple"],["Proposta","yellow"],["Negociação","orange"],["Contrato","pink"],["Piloto pagante","mint"],["Cliente","mint"],["Perdido","gray"]].map(([n,c])=>O(n,c));
+    const I={cnpj:rid(),icp:rid(),pf:rid(),mail:rid(),tel:rid(),prod:rid(),mod:rid(),val:rid(),close:rid(),next:rid(),nwho:rid()};
+    const now=new Date(),qs=[];let y=now.getFullYear(),q=Math.floor(now.getMonth()/3)+1;for(let i=0;i<6;i++){qs.push(O("Q"+q+" "+y,COLORS[i%6]));if(++q>4){q=1;y++;}}
+    p.schema={props:[{id:"title",name:"Empresa",type:"title"},{id:st,name:"Fase",type:"status",key:"stage",options:fases},
+      {id:I.cnpj,name:"CNPJ",type:"text",key:"cnpj"},{id:I.icp,name:"ICP",type:"select",options:[O("Saúde","mint"),O("Corporate","purple"),O("Integrador","yellow")]},
+      {id:I.pf,name:"Ponto focal",type:"text"},{id:I.mail,name:"E-mail do ponto focal",type:"text"},{id:I.tel,name:"Telefone do ponto focal",type:"text"},
+      {id:I.prod,name:"Produto",type:"multi",options:[O("Nevo Triagem","mint"),O("Nevo Diagnóstico","mist"),O("nevo. VISION","purple"),O("Selo de segurança","yellow")]},
+      {id:I.mod,name:"Modelo de negócio",type:"select",options:[O("Por vida elegível","mint"),O("Por laudo","mist"),O("Mensalidade por unidade","yellow"),O("API","purple"),O("Projeto fechado","gray")]},
+      {id:who,name:"Responsável comercial",type:"person",options:personOpts()},
+      {id:I.val,name:"Valor total do contrato",type:"number",format:"brl",key:"value"},{id:I.close,name:"Previsão de assinatura",type:"select",key:"close",options:qs},
+      {id:I.next,name:"Próxima tarefa",type:"text",key:"next"},{id:due,name:"Prazo da próxima tarefa",type:"date",key:"nextDue"},{id:I.nwho,name:"Responsável pela próxima tarefa",type:"person",key:"nextWho",options:personOpts()}]};
+    // campos esperados em cada fase (acumulam conforme o lead avança)
+    const r1=[I.icp,I.pf,I.mail,who],r2=[...r1,I.prod],r3=[...r2,I.mod,I.val,I.close],r4=[...r3,I.cnpj,I.next,due,I.nwho];
+    p.req={[fases[1].id]:r1,[fases[2].id]:r2,[fases[3].id]:r3,[fases[4].id]:r4,[fases[5].id]:r4,[fases[6].id]:r3.concat(I.cnpj),[fases[7].id]:r3.concat(I.cnpj)};
+    p.won=[fases[6].id,fases[7].id];p.lost=[fases[8].id];
+    const tid=rid();p.autoTpl=tid;p.templates=[{id:tid,name:"Ficha de qualificação",blocks:[["h2","Dor e contexto"],["p",""],["h2","Qualificação"],["todo","Fonte de verba identificada"],["todo","Falamos com quem decide"],["todo","A dor é prioridade agora"],["todo","Há prazo para decidir"],["h2","Pessoas envolvidas"],["ul",""],["h2","Objeções e riscos"],["ul",""],["h2","Histórico de contatos"],["ul",""]].map(x=>({id:rid(),t:x[0],h:x[1]}))}];
+    p.views=[V("Funil","board",{group:st}),V("Todas","table"),V("Por responsável","board",{group:who}),V("Previsão de assinatura","board",{group:I.close}),V("Próximas tarefas","calendar",{dateProp:due})];
   }else{
     p.schema={props:[{id:"title",name:"Meta",type:"title"},{id:st,name:"Status",type:"status",options:[O("No rumo","mint"),O("Em risco","yellow"),O("Atrasada","pink"),O("Concluída","mist")]},
       {id:who,name:"Responsável",type:"person",options:personOpts()},{id:rid(),name:"Período",type:"select",options:[]},{id:rid(),name:"Indicador",type:"text"},{id:rid(),name:"Atual",type:"number"},{id:rid(),name:"Alvo",type:"number"},{id:due,name:"Prazo",type:"date"}]};
@@ -679,7 +700,7 @@ function renderSide(){
       el("a",{class:"srow"+(S.panel?" on":""),href:"#painel",style:{"text-decoration":"none"}},icon("board"),"Painel"),
       el("button",{class:"srow",onclick:openSearch},icon("search"),"Buscar",el("kbd",null,"Ctrl K")),
       el("button",{class:"srow","data-w":1,onclick:()=>go(newPage(null,"page").id)},icon("plus"),"Nova página"),
-      el("button",{class:"srow","data-w":1,onclick:e=>pop(e.currentTarget,[el("h6",null,"Nova base de dados"),mi("Em branco","db",()=>go(newPage(null,"db","").id)),mi("Tarefas","list",()=>go(fromTemplate("tarefas").id)),mi("Metas","board",()=>go(fromTemplate("metas").id))])},icon("db"),"Nova base de dados")));
+      el("button",{class:"srow","data-w":1,onclick:e=>pop(e.currentTarget,[el("h6",null,"Nova base de dados"),mi("Em branco","db",()=>go(newPage(null,"db","").id)),mi("Tarefas","list",()=>go(fromTemplate("tarefas").id)),mi("Metas","board",()=>go(fromTemplate("metas").id)),mi("CRM comercial","list",()=>go(fromTemplate("crm").id))])},icon("db"),"Nova base de dados")));
   const wrap=el("nav",{class:"tree-wrap"});
   const favs=[...S.pages.values()].filter(p=>p.fav&&alive(p));
   if(favs.length){wrap.append(el("div",{class:"sec"},"Favoritos"));favs.forEach(p=>wrap.append(node(p,0,true)));}
@@ -1152,6 +1173,7 @@ function showVal(row,pr){
   if(pr.type==="relation"){const ids=relIds(row,pr);return ids.length?el("span",{class:"tags"},ids.map(id=>el("span",{class:"tag c-gray"},page(id).title||"Sem título"))):null;}
   if(pr.type==="date")return el("span",{class:"tag c-gray"},fmtDate(v));
   if(pr.type==="checkbox")return v?el("span",{class:"tag c-mint"},pr.name):null;
+  if(pr.type==="number"&&pr.format==="brl"&&typeof v==="number")return el("span",{class:"tag c-gray"},brl(v));
   return el("span",{class:"tag c-gray"},String(v));
 }
 function visible(d,v){
@@ -1168,11 +1190,30 @@ function visible(d,v){
     rows=rows.slice().sort((a,b)=>{const x=key(a),y=key(b);if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return-1;return(x<y?-1:x>y?1:0)*dir;});}
   return rows;
 }
+const brl=n=>Number(n).toLocaleString("pt-BR",{style:"currency",currency:"BRL",maximumFractionDigits:0});
+const keyProp=(d,k)=>props(d).find(p=>p.key===k);
+const isOpenDeal=(d,r)=>{const st=keyProp(d,"stage"),v=st&&r.props?.[st.id];return!((d.won||[]).includes(v)||(d.lost||[]).includes(v));};
+function missing(row,d){
+  if(!d||!d.req)return[];const st=keyProp(d,"stage"),need=st&&d.req[row.props?.[st.id]]||[];
+  return need.map(id=>props(d).find(p=>p.id===id)).filter(pr=>{if(!pr)return false;const v=row.props?.[pr.id];return v==null||v===""||(Array.isArray(v)&&!v.length);});
+}
+function importDeals(d,src){
+  const st=keyProp(d,"stage"),sst=props(src).find(p=>p.type==="status"),who=props(d).find(p=>p.type==="person"&&!p.key),swho=props(src).find(p=>p.type==="person");
+  const next=keyProp(d,"next"),snext=props(src).find(p=>p.type==="text"&&/proxim/.test(norm(p.name)));
+  kids(src.id).forEach(o=>{const r=addRow(d);r.title=o.title;
+    const so=sst&&(sst.options||[]).find(x=>x.id===o.props?.[sst.id]),to=so&&(st.options||[]).find(x=>norm(x.name)===norm(so.name));if(to)r.props[st.id]=to.id;
+    const po=swho&&(swho.options||[]).find(x=>x.id===o.props?.[swho.id]),pt=po&&who&&(who.options||[]).find(x=>norm(x.name)===norm(po.name));if(pt)r.props[who.id]=pt.id;
+    if(next&&snext&&o.props?.[snext.id])r.props[next.id]=o.props[snext.id];
+    if(!isBlank(o))r.blocks=mkBlocks(o.blocks);save(r);});
+}
 function addRow(d,preset){
   const v=curView(d),pp={};
   (v.filters||[]).forEach(f=>{const pr=props(d).find(p=>p.id===f.prop);if(pr&&OPT(pr.type)&&f.value)pp[pr.id]=pr.type==="multi"?[f.value]:f.value;});
   Object.assign(pp,preset||{});
-  const r={id:rid(),kind:"page",title:"",parent:d.id,order:(rowsOf(d).at(-1)?.order||0)+1,props:pp,blocks:[]};save(r);return r;
+  const stg=keyProp(d,"stage");if(stg&&!pp[stg.id]&&stg.options&&stg.options[0])pp[stg.id]=stg.options[0].id;
+  const r={id:rid(),kind:"page",title:"",parent:d.id,order:(rowsOf(d).at(-1)?.order||0)+1,props:pp,blocks:[]};
+  const at=d.autoTpl&&(d.templates||[]).find(t=>t.id===d.autoTpl);if(at)r.blocks=mkBlocks(at.blocks||[]);
+  save(r);return r;
 }
 function renderDb(m,d){
   if(!d.schema)d.schema={props:[{id:"title",name:"Nome",type:"title"}]};if(!d.views||!d.views.length)d.views=[{id:rid(),name:"Tabela",type:"table"}];
@@ -1232,7 +1273,10 @@ function sortPop(anchor,d){
 function drawBody(d){
   const b=$("#dbbody");if(!b)return;b.textContent="";const v=curView(d),rows=visible(d,v);
   ({table:drawTable,board:drawBoard,list:drawList,calendar:drawCal}[v.type]||drawTable)(b,d,v,rows);
-  const total=rowsOf(d).length;b.append(el("div",{class:"foot"},rows.length===total?`${total} ${total===1?"item":"itens"}`:`${rows.length} de ${total} itens`));
+  const total=rowsOf(d).length,sums=props(d).filter(p=>p.type==="number").map(p=>{const xs=rows.map(r=>r.props?.[p.id]).filter(x=>typeof x==="number");return xs.length?el("span",null,p.name+": "+(p.format==="brl"?brl(xs.reduce((a,c)=>a+c,0)):xs.reduce((a,c)=>a+c,0).toLocaleString("pt-BR"))):null;}).filter(Boolean);
+  if(d.tpl==="crm"&&!total&&!S.ro){const src=[...S.pages.values()].find(x=>x.kind==="db"&&x!==d&&alive(x)&&/pipeline|funil/.test(norm(x.title))&&kids(x.id).length);
+    if(src)b.prepend(el("div",{class:"gnote"},`A base ${src.title} tem ${kids(src.id).length} contas.`,el("button",{class:"btn line",onclick:()=>{importDeals(d,src);drawBody(d);toast("Contas trazidas. A base original continua como estava.");}},"Trazer para este CRM")));}
+  b.append(el("div",{class:"foot"},rows.length===total?`${total} ${total===1?"item":"itens"}`:`${rows.length} de ${total} itens`,sums));
 }
 /* controles de valor (tabela e painel de propriedades) */
 function control(row,pr,d,inTable){
@@ -1244,10 +1288,14 @@ function control(row,pr,d,inTable){
       !ids.length&&!inTable&&ro&&el("span",{style:{color:"var(--faint)"}},"Vazio"));
     if(!ro)c.addEventListener("click",e=>{if(e.target===c)relPop(c,row,pr,d);});return c;}
   if(OPT(pr.type)){const b=el("button",{class:"cell",disabled:ro,"aria-label":pr.name,onclick:e=>optPop(e.currentTarget,row,pr,d)},showVal(row,pr)||(!inTable&&el("span",{style:{color:"var(--faint)"}},"Vazio")));return b;}
-  const i=el("input",{class:"cell"+(pr.type==="number"?" num":"")+(pr.type==="title"?" ttl":""),value:v??"",readOnly:ro,"aria-label":pr.name,placeholder:pr.type==="title"?"Sem título":inTable?"":"Vazio",inputMode:pr.type==="number"?"decimal":pr.type==="url"?"url":"text"});
+  const i=el("input",{class:"cell"+(pr.type==="number"?" num":"")+(pr.type==="title"?" ttl":""),value:v??"",readOnly:ro,"aria-label":pr.name,placeholder:pr.type==="title"?"Sem título":inTable?"":pr.format==="brl"?"Valor em reais":"Vazio",inputMode:pr.type==="number"?"decimal":pr.type==="url"?"url":"text"});
   if(pr.type==="title")i.addEventListener("input",()=>{row.title=i.value;save(row);liveTitle(row);});
-  else i.addEventListener("change",()=>{let x=i.value.trim();if(pr.type==="number"){const n=parseFloat(x.includes(",")?x.replace(/\./g,"").replace(",","."):x);x=x===""||isNaN(n)?"":n;i.value=x;}setVal(row,pr,x);});
+  else i.addEventListener("change",()=>{let x=i.value.trim();
+    if(pr.key==="cnpj"){const dg=x.replace(/[.\/\-\s]/g,"").toUpperCase();if(/^[0-9A-Z]{12}\d{2}$/.test(dg)){x=dg.slice(0,2)+"."+dg.slice(2,5)+"."+dg.slice(5,8)+"/"+dg.slice(8,12)+"-"+dg.slice(12);i.value=x;}else if(x)toast("O CNPJ tem 14 caracteres. Confira o número digitado.");}
+    if(pr.type==="number"){x=x.replace(/[^\d.,\-]/g,"");const n=parseFloat(x.includes(",")?x.replace(/\./g,"").replace(",","."):x);x=x===""||isNaN(n)?"":n;i.value=x;}setVal(row,pr,x);});
   i.addEventListener("keydown",e=>{if(e.key==="Enter")i.blur();});
+  if(pr.type==="number"&&pr.format==="brl"){const show=()=>{const n=row.props?.[pr.id];i.value=typeof n==="number"?brl(n):"";};show();
+    i.addEventListener("focus",()=>{const n=row.props?.[pr.id];i.value=typeof n==="number"?String(n).replace(".",","):"";});i.addEventListener("blur",()=>setTimeout(show,0));}
   return i;
 }
 function optPop(anchor,row,pr,d){
@@ -1305,8 +1353,10 @@ function drawBoard(b,d,v,rows){
   const cols=[...(g.options||[]),{id:null,name:"Sem "+g.name.toLowerCase(),color:"gray"}];
   const board=el("div",{class:"board"});
   cols.forEach(o=>{const items=rows.filter(r=>(r.props?.[g.id]||null)===o.id);if(o.id===null&&!items.length&&g.options?.length)return;
-    const col=el("div",{class:"col"},el("div",{class:"col-h"},tag(o),el("b",null,items.length)),
+    const vp=keyProp(d,"value"),sum=vp?items.reduce((a,r)=>a+(typeof r.props?.[vp.id]==="number"?r.props[vp.id]:0),0):0;
+    const col=el("div",{class:"col"},el("div",{class:"col-h"},tag(o),el("b",null,items.length),sum?el("em",{title:"Soma de "+vp.name},brl(sum)):null),
       items.map(r=>{const c=el("button",{class:"card",draggable:!S.ro,onclick:()=>openPeek(r.id)},el("strong",{class:r.title?"":"empty"},r.title||"Sem título"));const cp=cardProps(r,d,g.id);if(cp.length)c.append(el("span",{class:"tags"},cp));
+        const ms=missing(r,d);if(ms.length)c.append(el("span",{class:"pend",title:"Faltam: "+ms.map(x=>x.name).join(", ")},ms.length===1?"1 campo pendente":ms.length+" campos pendentes"));
         c.addEventListener("dragstart",e=>{S.dragRow=r.id;e.dataTransfer.effectAllowed="move";try{e.dataTransfer.setData("text/plain",r.id);}catch(_){}});c.addEventListener("dragend",()=>{S.dragRow=null;});return c;}),
       el("button",{class:"addrow",onclick:()=>{const r=addRow(d,o.id?{[g.id]:o.id}:{});drawBody(d);openPeek(r.id);}},icon("plus"),"Novo"));
     col.addEventListener("dragover",e=>{if(S.dragRow){e.preventDefault();col.classList.add("over");}});
@@ -1346,7 +1396,8 @@ function drawCal(b,d,v,rows){
   const und=rows.filter(r=>!r.props?.[dp.id]).length;if(und)b.append(el("div",{class:"none"},`${und} ${und===1?"item sem data não aparece":"itens sem data não aparecem"} no calendário.`));
 }
 function propsPanel(row,d){
-  const box=el("div",{class:"props"});
+  const box=el("div",{class:"props"}),ms=missing(row,d);
+  if(ms.length){const st=keyProp(d,"stage"),o=(st.options||[]).find(x=>x.id===row.props?.[st.id]);box.append(el("div",{class:"missing"},"Para a fase "+(o?o.name:"atual")+" faltam: "+ms.map(x=>x.name).join(", ")+"."));}
   props(d).filter(p=>p.type!=="title").forEach(pr=>box.append(el("div",{class:"prow"},el("div",{class:"pname",title:pr.name},pr.name),el("div",{class:"pval"},control(row,pr,d,false)))));
   backlinks(row).forEach(g=>box.append(el("div",{class:"prow"},el("div",{class:"pname",title:"Itens de "+(g.d.title||"base")+" que apontam para este, pela propriedade "+g.pr.name},(g.d.title||"Base")+" vinculadas"),el("div",{class:"pval"},el("div",{class:"cell rel",style:{cursor:"default"}},g.rows.map(r=>relTag(r.id)))))));
   return box;
@@ -1475,20 +1526,23 @@ function homeView(){
   const hello=now.getHours()<12?"Bom dia":now.getHours()<18?"Boa tarde":"Boa noite",first=((me&&me.displayName)||"").split(" ")[0];
   const dbs=[...S.pages.values()].filter(d=>d.kind==="db"&&alive(d));
   /* tarefas */
-  const taskDbs=dbs.filter(d=>d.tpl==="tarefas"),names=[...new Set(taskDbs.flatMap(d=>props(d).filter(p=>p.type==="person").flatMap(p=>(p.options||[]).map(o=>o.name))))];
+  const taskDbs=dbs.filter(d=>d.tpl==="tarefas"),names=[...new Set(dbs.filter(d=>d.tpl==="tarefas"||d.tpl==="crm").flatMap(d=>props(d).filter(p=>p.type==="person").flatMap(p=>(p.options||[]).map(o=>o.name))))];
   const meOpt=whoAmI(names.map(n=>({name:n}))),tasks=[];
   taskDbs.forEach(d=>{const who=props(d).find(p=>p.type==="person"),st=props(d).find(p=>p.type==="status"),due=props(d).find(p=>p.type==="date");
     const mine=who&&meOpt&&(who.options||[]).find(o=>norm(o.name)===norm(meOpt.name)),doneIds=new Set((st?.options||[]).filter(o=>DONE.test(norm(o.name))).map(o=>o.id)),doneOpt=(st?.options||[]).find(o=>/conclu|feit|done|finaliz|entreg/.test(norm(o.name)));
     if(!mine)return;
     kids(d.id).forEach(r=>{if(r.props?.[who.id]!==mine.id||(st&&doneIds.has(r.props?.[st.id])))return;tasks.push({r,d,st,doneOpt,due:due&&r.props?.[due.id]||""});});});
+  const crmDbs=dbs.filter(d=>d.tpl==="crm");
+  crmDbs.forEach(d=>{const nw=keyProp(d,"nextWho"),nx=keyProp(d,"next"),nd=keyProp(d,"nextDue"),mine=nw&&meOpt&&(nw.options||[]).find(o=>norm(o.name)===norm(meOpt.name));if(!mine||!nx)return;
+    kids(d.id).forEach(r=>{if(r.props?.[nw.id]!==mine.id||!r.props?.[nx.id]||!isOpenDeal(d,r))return;tasks.push({r,d,st:keyProp(d,"stage"),doneOpt:null,due:nd&&r.props?.[nd.id]||"",label:r.props[nx.id]+" · "+(r.title||"Sem título")});});});
   tasks.sort((a,b)=>(a.due||"9999").localeCompare(b.due||"9999"));
   const groups=[["Atrasadas",t=>t.due&&t.due<today],["Hoje",t=>t.due===today],["Próximos 7 dias",t=>t.due>today&&t.due<=week],["Mais adiante",t=>t.due>week],["Sem prazo",t=>!t.due]];
   const taskRow=t=>el("div",{class:"hrow"},
     !S.ro&&t.doneOpt&&el("button",{class:"chk",title:"Marcar como "+t.doneOpt.name.toLowerCase(),"aria-label":"Concluir "+(t.r.title||"tarefa"),onclick:()=>{setVal(t.r,t.st,t.doneOpt.id);renderMain(true);toast("Tarefa concluída");}},icon("check")),
-    el("a",{href:"#p-"+t.r.id},t.r.title||"Sem título"),
+    el("a",{href:"#p-"+t.r.id},t.label||t.r.title||"Sem título"),
     t.st&&showVal(t.r,t.st),t.due&&el("small",{class:t.due<today?"late":""},fmtDate(t.due)));
   const secTasks=el("section",null,el("h2",null,"Minhas tarefas"));
-  if(!taskDbs.length)secTasks.append(el("div",{class:"hempty"},"Ainda não existe uma base de Tarefas.",!S.ro&&el("button",{class:"btn line",onclick:()=>go(fromTemplate("tarefas").id)},icon("plus"),"Criar base Tarefas")));
+  if(!taskDbs.length&&!tasks.length)secTasks.append(el("div",{class:"hempty"},"Ainda não existe uma base de Tarefas.",!S.ro&&el("button",{class:"btn line",onclick:()=>go(fromTemplate("tarefas").id)},icon("plus"),"Criar base Tarefas")));
   else if(!meOpt)secTasks.append(el("div",{class:"hempty"},"Escolha acima quem você é na lista de responsáveis para ver as suas tarefas."));
   else if(!tasks.length)secTasks.append(el("div",{class:"hempty"},"Nenhuma tarefa aberta com você."));
   else groups.forEach(([label,fn])=>{const g=tasks.filter(fn);if(g.length)secTasks.append(el("h3",null,label+" ("+g.length+")"),...g.map(taskRow));});
@@ -1534,10 +1588,11 @@ function panelView(){
     if(rows.length){const done=rows.filter(q=>isDone(q.d,q.x)).length;return{pct:done/rows.length,label:done+" de "+rows.length+" tarefas"};}
     return null;};
   const onTrack=metas.filter(m=>{const o=opt(stOf(m.d),m.r);return o&&/rumo|conclu|ok|dia/.test(norm(o.name));}).length;
-  const pipe=dbs.find(d=>/pipeline|funil|crm/.test(norm(d.title))&&stOf(d));
+  const pipe=dbs.find(d=>d.tpl==="crm")||dbs.find(d=>/pipeline|funil|crm/.test(norm(d.title))&&stOf(d));
+  const vp=pipe&&keyProp(pipe,"value"),deals=pipe?kids(pipe.id).filter(r=>!pipe.tpl||isOpenDeal(pipe,r)):[],val=r=>vp&&typeof r.props?.[vp.id]==="number"?r.props[vp.id]:0,openVal=deals.reduce((a,r)=>a+val(r),0);
   const tile=(n,label,warn)=>el("div",{class:"tile"+(warn&&n?" warn":"")},el("b",null,String(n)),el("span",null,label));
   const wrap=el("div",{class:"home"},el("header",null,el("h1",null,"Painel"),el("div",{class:"sub"},"Calculado agora, a partir das bases que você pode ver.")),
-    el("div",{class:"tiles"},tile(metas.length?onTrack+"/"+metas.length:"0","metas no rumo ou concluídas"),tile(open.length,"tarefas abertas"),tile(late.length,"tarefas atrasadas",true),pipe&&tile(kids(pipe.id).length,"contas em "+(pipe.title||"pipeline"))));
+    el("div",{class:"tiles"},tile(metas.length?onTrack+"/"+metas.length:"0","metas no rumo ou concluídas"),tile(open.length,"tarefas abertas"),tile(late.length,"tarefas atrasadas",true),pipe&&tile(deals.length,pipe.tpl?"negócios em aberto":"contas em "+(pipe.title||"pipeline")),vp&&tile(brl(openVal),"em contratos em aberto")));
   /* metas */
   const sm=el("section",null,el("h2",null,"Metas"));
   if(!metasDbs.length)sm.append(el("div",{class:"hempty"},"Ainda não existe uma base de Metas.",!S.ro&&el("button",{class:"btn line",onclick:()=>go(fromTemplate("metas").id)},icon("plus"),"Criar base Metas")));
@@ -1556,6 +1611,9 @@ function panelView(){
   /* carga por pessoa */
   const load=new Map();open.forEach(t=>{const o=opt(P(t.d,p=>p.type==="person"),t.r),k=o?o.name:"Sem responsável";load.set(k,(load.get(k)||0)+1);});
   if(load.size){const max=Math.max(...load.values());dist.push(el("section",null,el("h2",null,"Tarefas abertas por pessoa"),[...load.entries()].sort((a,b)=>b[1]-a[1]).map(([k,n])=>el("div",{class:"brow"},el("span",{title:k},k),el("div",{class:"track"},el("i",{style:{width:Math.round(n/max*100)+"%"}})),el("small",null,n)))));}
+  if(vp&&deals.length){const money=(title,pr)=>{const groups=(pr.options||[]).map(o=>({n:o.name,v:deals.filter(r=>r.props?.[pr.id]===o.id).reduce((a,r)=>a+val(r),0)})).filter(g=>g.v>0);if(!groups.length)return null;const max=Math.max(...groups.map(g=>g.v));
+      return el("section",null,el("h2",null,title),groups.map(g=>el("div",{class:"brow",style:{"grid-template-columns":"160px minmax(0,1fr) 110px"}},el("span",{title:g.n},g.n),el("div",{class:"track"},el("i",{style:{width:Math.round(g.v/max*100)+"%"}})),el("small",null,brl(g.v)))));};
+    const cl=keyProp(pipe,"close"),stg=keyProp(pipe,"stage");[stg&&money("Valor em aberto por fase",stg),cl&&money("Valor em aberto por previsão de assinatura",cl)].filter(Boolean).forEach(x=>dist.unshift(x));}
   if(dist.length)wrap.append(el("div",{class:"cols2"},dist));
   /* prazos */
   const due=[...open.map(t=>({r:t.r,d:t.d,x:dueOf(t.d,t.r)})),...metas.filter(m=>!isDone(m.d,m.r)).map(m=>({r:m.r,d:m.d,x:dueOf(m.d,m.r)}))].filter(q=>q.x&&q.x<=soon).sort((a,b)=>a.x.localeCompare(b.x)).slice(0,12);
