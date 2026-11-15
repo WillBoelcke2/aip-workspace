@@ -149,3 +149,4 @@ Em **Nova base de dados** há o modelo **CRM comercial**, espelhado na planilha 
 - **Virar tarefa**: no menu de qualquer linha de texto (a alça à esquerda). Em uma ata dentro de Reuniões, a tarefa já sai ligada à reunião.
 - **Avisos**: mostra quem citou você em comentários e quem atribuiu um item a você, nos últimos 30 dias.
 - **Enviar sugestão**: grava na base "Sugestões e erros", com quem enviou e em que tela estava.
+- **Equipes**: a base "Equipes" tem uma linha por equipe, com Membros e Líder. Em Nova tarefa dá para escolher uma equipe em vez de uma pessoa; a tarefa aparece em "Das suas equipes" na página Hoje de todos os membros, que também recebem um aviso. A página de cada equipe lista as tarefas dela.

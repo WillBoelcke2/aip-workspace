@@ -750,7 +750,7 @@ function renderSide(){
       el("button",{class:"srow",onclick:openSearch},icon("search"),"Buscar",el("kbd",null,"Ctrl K")),
       taskDb()&&el("button",{class:"srow","data-w":1,onclick:e=>quickTask(e.currentTarget)},icon("check"),"Nova tarefa",el("kbd",null,"Alt T")),
       el("button",{class:"srow","data-w":1,onclick:()=>go(newPage(null,"page").id)},icon("plus"),"Nova página"),
-      el("button",{class:"srow","data-w":1,onclick:e=>pop(e.currentTarget,[el("h6",null,"Nova base de dados"),mi("Em branco","db",()=>go(newPage(null,"db","").id)),mi("Tarefas","list",()=>go(fromTemplate("tarefas").id)),mi("Metas","board",()=>go(fromTemplate("metas").id)),mi("CRM comercial","list",()=>go(fromTemplate("crm").id))])},icon("db"),"Nova base de dados")));
+      el("button",{class:"srow","data-w":1,onclick:e=>pop(e.currentTarget,[el("h6",null,"Nova base de dados"),mi("Em branco","db",()=>go(newPage(null,"db","").id)),mi("Tarefas","list",()=>go(fromTemplate("tarefas").id)),mi("Metas","board",()=>go(fromTemplate("metas").id)),mi("CRM comercial","list",()=>go(fromTemplate("crm").id)),!teamDb()&&mi("Equipes","db",()=>go(ensureTeams().id))])},icon("db"),"Nova base de dados")));
   const wrap=el("nav",{class:"tree-wrap"});
   const favs=[...S.pages.values()].filter(p=>p.fav&&alive(p));
   if(favs.length){wrap.append(el("div",{class:"sec"},"Favoritos"));favs.forEach(p=>wrap.append(node(p,0,true)));}
@@ -1216,7 +1216,7 @@ const rowsOf=d=>kids(d.id);
 const curView=d=>d.views.find(v=>v.id===S.view[d.id])||d.views[0];
 const fmtDate=v=>v&&/^\d{4}-\d{2}-\d{2}$/.test(v)?v.split("-").reverse().join("/"):"";
 const val=(row,pr)=>pr.type==="title"?row.title:row.props?.[pr.id];
-function setVal(row,pr,v){if(pr.type==="title"){row.title=v||"";}else{row.props=row.props||{};if(pr.type==="person"&&v&&row.props[pr.id]!==v)stamp(row,pr.id);if(v==null||v===""||(Array.isArray(v)&&!v.length))delete row.props[pr.id];else row.props[pr.id]=v;}save(row);}
+function setVal(row,pr,v){if(pr.type==="title"){row.title=v||"";}else{row.props=row.props||{};if(pr.type==="person"&&v&&row.props[pr.id]!==v)stamp(row,pr.id);if(pr.type==="relation"&&Array.isArray(v)&&v.length&&page(pr.db)?.tpl==="equipes"&&String(v)!==String(row.props[pr.id]||""))stamp(row,pr.id);if(v==null||v===""||(Array.isArray(v)&&!v.length))delete row.props[pr.id];else row.props[pr.id]=v;}save(row);}
 const tag=o=>el("span",{class:"tag c-"+(o.color||"gray")},o.name);
 function showVal(row,pr){
   const v=val(row,pr);if(v==null||v==="")return null;
@@ -1571,6 +1571,20 @@ function fromEvent(d,dp,ev){
 /* ============ pessoa, captura rápida, avisos e sugestões ============ */
 const myName=()=>{const m=me&&(S.members||[]).find(x=>x.id===me.email);return(m&&m.name)||"";};
 const taskDb=()=>[...S.pages.values()].find(d=>d.kind==="db"&&d.tpl==="tarefas"&&alive(d));
+const teamDb=()=>{const d=page("equipes");return d&&alive(d)&&d.kind==="db"?d:[...S.pages.values()].find(x=>x.kind==="db"&&x.tpl==="equipes"&&alive(x));};
+const teamRel=d=>{const t=teamDb();return t&&props(d).find(p=>p.type==="relation"&&p.db===t.id);};
+function myTeams(){const t=teamDb();if(!t||!me)return[];const mp=props(t).find(p=>p.key==="members");if(!mp)return[];const mine=whoAmI(mp.options||[]);if(!mine)return[];
+  return kids(t.id).filter(r=>Array.isArray(r.props?.[mp.id])&&r.props[mp.id].includes(mine.id));}
+function ensureTeams(){
+  let t=teamDb();
+  if(!t){const mb=rid(),ld=rid();
+    t={id:page("equipes")?rid():"equipes",kind:"db",tpl:"equipes",title:"Equipes",parent:null,order:(kids(null).at(-1)?.order||0)+1,color:"mist",blocks:[],lock:false,acl:[],
+      schema:{props:[{id:"title",name:"Equipe",type:"title"},{id:mb,name:"Membros",type:"multi",key:"members",options:personOpts()},{id:ld,name:"Líder",type:"person",options:personOpts()},{id:rid(),name:"O que faz",type:"text"}]},
+      views:[{id:rid(),name:"Equipes",type:"table"}]};
+    save(t);}
+  S.pages.forEach(d=>{if(d.kind==="db"&&d.tpl==="tarefas"&&alive(d)&&!props(d).some(p=>p.type==="relation"&&p.db===t.id)){d.schema.props.push({id:rid(),name:"Equipe",type:"relation",db:t.id});save(d);}});
+  return t;
+}
 function stamp(row,pid){if(!me)return;row.asg=row.asg||{};row.asg[pid]={by:me.email,name:me.displayName||me.email.split("@")[0],ts:Date.now()};}
 function quickTask(anchor,preset){
   const d=taskDb();if(!d){toast("Ainda não existe a base Tarefas.");return;}
@@ -1580,16 +1594,19 @@ function quickTask(anchor,preset){
   const ti=el("input",{class:"inp",id:"qt-title",placeholder:"O que precisa ser feito?","aria-label":"Tarefa",value:preset.title||"",maxlength:200});
   const ws=who?sel("qt-who",[["","Sem responsável"],...(who.options||[]).slice().sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")).map(o=>[o.id,o.name])],mine?mine.id:"",()=>{}):null;
   const di=due?el("input",{class:"inp",id:"qt-due",type:"date","aria-label":"Prazo"}):null;
+  const tr=teamRel(d),teams=tr?kids(teamDb().id).filter(x=>x.title):[];
+  const ts=teams.length?sel("qt-team",[["","Sem equipe"],...teams.map(x=>[x.id,"Equipe: "+x.title])],"",()=>{}):null;
   const make=()=>{const title=ti.value.trim();if(!title){ti.focus();return;}
     const pp={};if(ws&&ws.value)pp[who.id]=ws.value;if(di&&di.value)pp[due.id]=di.value;if(st&&st.options&&st.options[0])pp[st.id]=st.options[0].id;
+    if(ts&&ts.value)pp[tr.id]=[ts.value];
     Object.assign(pp,preset.props||{});
     const r={id:rid(),kind:"page",title,parent:d.id,order:(rowsOf(d).at(-1)?.order||0)+1,props:pp,blocks:[]};
-    if(pp[who?.id])stamp(r,who.id);
+    if(pp[who?.id])stamp(r,who.id);if(ts&&ts.value)stamp(r,tr.id);
     save(r);closePop();if(preset.done)preset.done(r);
     if(S.home||S.cur===d.id)renderMain(true);
-    toast("Tarefa criada"+(ws&&ws.value?" para "+ws.options[ws.selectedIndex].text.split(" ")[0]:"")+".");};
+    toast("Tarefa criada"+(ws&&ws.value?" para "+ws.options[ws.selectedIndex].text.split(" ")[0]:ts&&ts.value?" para a equipe "+page(ts.value).title:"")+".");};
   [ti,di].forEach(x=>x&&x.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();make();}}));
-  pop(anchor,el("div",{class:"qt"},el("h6",null,"Nova tarefa"),ti,el("div",{class:"qt-row"},ws,di),el("div",{class:"qt-foot"},el("a",{href:"#p-"+d.id,onclick:closePop},"Abrir Tarefas"),el("button",{class:"btn pri",onclick:make},"Criar"))),{focus:"#qt-title"});
+  pop(anchor,el("div",{class:"qt"},el("h6",null,"Nova tarefa"),ti,el("div",{class:"qt-row"},ws,di),ts&&el("div",{class:"qt-row"},ts),el("div",{class:"qt-foot"},el("a",{href:"#p-"+d.id,onclick:closePop},"Abrir Tarefas"),el("button",{class:"btn pri",onclick:make},"Criar"))),{focus:"#qt-title"});
 }
 function toTask(host,rect,b){ // transforma uma linha (da ata, por exemplo) em tarefa ligada à página
   const p=page(host._pid),d=taskDb();if(!d){toast("Ainda não existe a base Tarefas.");return;}
@@ -1601,10 +1618,11 @@ function toTask(host,rect,b){ // transforma uma linha (da ata, por exemplo) em t
 }
 const seenKey=()=>"aip-seen-"+(me?me.email:"");
 function notices(){
-  if(!me)return[];const out=[],lim=Date.now()-30*864e5;
+  if(!me)return[];const out=[],lim=Date.now()-30*864e5,mt=myTeams().map(x=>x.id),tdb=teamDb();
   S.pages.forEach(p=>{if(!alive(p))return;
     (p.comments||[]).forEach(c=>{if((c.at||[]).includes(me.email)&&c.by!==me.email&&c.ts>lim)out.push({ts:c.ts,p,who:c.name||"Alguém",text:"citou você em "+(p.title||"Sem título"),sub:c.text});});
     if(p.asg){const d=page(p.parent);if(d&&d.kind==="db")for(const pid in p.asg){const a=p.asg[pid],pr=props(d).find(x=>x.id===pid);if(!pr||!a||a.by===me.email||a.ts<lim)continue;
+      if(pr.type==="relation"){if(tdb&&pr.db===tdb.id){const hit=(Array.isArray(p.props?.[pid])?p.props[pid]:[]).find(id=>mt.includes(id));if(hit)out.push({ts:a.ts,p,who:a.name||String(a.by).split("@")[0],text:"passou para a equipe "+(page(hit).title||"")+": "+(p.title||"Sem título"),sub:d.title||""});}continue;}
       const mine=whoAmI(pr.options||[]);if(mine&&p.props?.[pid]===mine.id)out.push({ts:a.ts,p,who:a.name||String(a.by).split("@")[0],text:"atribuiu a você: "+(p.title||"Sem título"),sub:d.title||""});}}
   });
   return out.sort((a,b)=>b.ts-a.ts);
@@ -1663,6 +1681,12 @@ function homeView(){
     const mine=who&&meOpt&&(who.options||[]).find(o=>norm(o.name)===norm(meOpt.name)),doneIds=new Set((st?.options||[]).filter(o=>DONE.test(norm(o.name))).map(o=>o.id)),doneOpt=(st?.options||[]).find(o=>/conclu|feit|done|finaliz|entreg/.test(norm(o.name)));
     if(!mine)return;
     kids(d.id).forEach(r=>{if(r.props?.[who.id]!==mine.id||(st&&doneIds.has(r.props?.[st.id])))return;tasks.push({r,d,st,doneOpt,due:due&&r.props?.[due.id]||""});});});
+  const mt=myTeams(),mtIds=mt.map(x=>x.id),teamTasks=[];
+  if(mt.length)taskDbs.forEach(d=>{const tr=teamRel(d),who=props(d).find(p=>p.type==="person"),st=props(d).find(p=>p.type==="status"),due=props(d).find(p=>p.type==="date");if(!tr)return;
+    const doneIds=new Set((st?.options||[]).filter(o=>DONE.test(norm(o.name))).map(o=>o.id)),doneOpt=(st?.options||[]).find(o=>/conclu|feit|done|finaliz|entreg/.test(norm(o.name)));
+    kids(d.id).forEach(r=>{const tm=(Array.isArray(r.props?.[tr.id])?r.props[tr.id]:[]).find(id=>mtIds.includes(id));if(!tm||(st&&doneIds.has(r.props?.[st.id]))||tasks.some(t=>t.r===r))return;
+      const wo=who&&(who.options||[]).find(o=>o.id===r.props?.[who.id]);teamTasks.push({r,d,st,doneOpt,due:due&&r.props?.[due.id]||"",team:page(tm).title,wo:wo?wo.name.split(" ")[0]:""});});});
+  teamTasks.sort((a,b)=>(a.due||"9999").localeCompare(b.due||"9999"));
   const crmDbs=dbs.filter(d=>d.tpl==="crm");
   crmDbs.forEach(d=>{const nw=keyProp(d,"nextWho"),nx=keyProp(d,"next"),nd=keyProp(d,"nextDue"),mine=nw&&meOpt&&(nw.options||[]).find(o=>norm(o.name)===norm(meOpt.name));if(!mine||!nx)return;
     kids(d.id).forEach(r=>{if(r.props?.[nw.id]!==mine.id||!r.props?.[nx.id]||!isOpenDeal(d,r))return;tasks.push({r,d,st:keyProp(d,"stage"),doneOpt:null,due:nd&&r.props?.[nd.id]||"",label:r.props[nx.id]+" · "+(r.title||"Sem título")});});});
@@ -1671,12 +1695,14 @@ function homeView(){
   const taskRow=t=>el("div",{class:"hrow"},
     !S.ro&&t.doneOpt&&el("button",{class:"chk",title:"Marcar como "+t.doneOpt.name.toLowerCase(),"aria-label":"Concluir "+(t.r.title||"tarefa"),onclick:()=>{setVal(t.r,t.st,t.doneOpt.id);renderMain(true);toast("Tarefa concluída");}},icon("check")),
     el("a",{href:"#p-"+t.r.id},t.label||t.r.title||"Sem título"),
-    t.st&&showVal(t.r,t.st),t.due&&el("small",{class:t.due<today?"late":""},fmtDate(t.due)));
+    t.team&&el("span",{class:"tag c-mist"},t.team),t.team&&el("small",null,t.wo||"sem responsável"),
+    t.st&&!t.team&&showVal(t.r,t.st),t.due&&el("small",{class:t.due<today?"late":""},fmtDate(t.due)));
   const secTasks=el("section",null,el("h2",{class:"h2row"},"Minhas tarefas",!S.ro&&taskDb()&&el("button",{class:"btn line",onclick:e=>quickTask(e.currentTarget)},icon("plus"),"Nova tarefa")));
   if(!taskDbs.length&&!tasks.length)secTasks.append(el("div",{class:"hempty"},"Ainda não existe uma base de Tarefas.",!S.ro&&el("button",{class:"btn line",onclick:()=>go(fromTemplate("tarefas").id)},icon("plus"),"Criar base Tarefas")));
   else if(!meOpt)secTasks.append(el("div",{class:"hempty"},"Escolha acima quem você é na lista de responsáveis para ver as suas tarefas."));
   else if(!tasks.length)secTasks.append(el("div",{class:"hempty"},"Nenhuma tarefa aberta com você."));
   else groups.forEach(([label,fn])=>{const g=tasks.filter(fn);if(g.length)secTasks.append(el("h3",null,label+" ("+g.length+")"),...g.map(taskRow));});
+  const secTeam=teamTasks.length?el("section",null,el("h2",null,"Das suas equipes"),...teamTasks.map(taskRow)):null;
   /* reuniões de hoje */
   const meets=[];dbs.forEach(d=>props(d).filter(p=>p.type==="date").forEach(dp=>{if(d.tpl==="tarefas"||d.tpl==="metas"||d.tpl==="feedback")return;kids(d.id).forEach(r=>{if(r.props?.[dp.id]===today)meets.push({r,d});});}));
   const linked=new Set(meets.map(x=>x.r.gcal&&x.r.gcal.id).filter(Boolean));
@@ -1700,7 +1726,7 @@ function homeView(){
   const pick=names.length?sel("me-pick",[["","escolher"],...names.map(n=>[n,n])],meOpt?meOpt.name:"",x=>{try{x?localStorage.setItem("aip-me",x):localStorage.removeItem("aip-me");}catch(_){}renderMain(true);}):null;
   if(pick){pick.className="";pick.setAttribute("aria-label","Quem você é na lista de responsáveis");}
   return el("div",{class:"home"},el("header",null,el("h1",null,hello+(first?", "+first:"")),
-    el("div",{class:"sub"},now.toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"}),pick&&el("span",null,"· Nas tarefas você é"),pick)),secMen,secTasks,secMeet,secRec);
+    el("div",{class:"sub"},now.toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"}),pick&&el("span",null,"· Nas tarefas você é"),pick)),secMen,secTasks,secTeam,secMeet,secRec);
 }
 
 /* ============ Painel ============ */
@@ -1756,7 +1782,7 @@ function panelView(){
 }
 
 /* ============ aviso de versão nova ============ */
-const BUILD="1794770550";let newer=false;
+const BUILD="1794772416";let newer=false;
 async function checkBuild(){if(newer||!/^https?:/.test(location.protocol))return;
   try{const r=await fetch("version.txt?"+Date.now(),{cache:"no-store"});if(!r.ok)return;const v=(await r.text()).trim();
     if(v&&v!==BUILD){newer=true;const t=$("#toast");clearTimeout(toastT);t.textContent="";t.append("Há uma versão nova do workspace. ",el("button",{style:{color:"var(--mint)","font-weight":"600","margin-left":"8px"},onclick:()=>location.reload()},"Atualizar"));t.hidden=false;}}catch(_){}}
