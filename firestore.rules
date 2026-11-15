@@ -1,0 +1,14 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Só contas Google verificadas do domínio da empresa leem e escrevem.
+    function membro() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.matches('.*@aipathology[.]com[.]br$');
+    }
+    match /pages/{id} {
+      allow read, write: if membro();
+    }
+  }
+}
