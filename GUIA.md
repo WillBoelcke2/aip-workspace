@@ -133,7 +133,7 @@ Menu `...` de uma página, **Histórico de versões**. O app guarda o estado ant
 
 ## CRM comercial
 
-Em **Nova base de dados** há o modelo **CRM comercial**: fases de qualificação (Lead, Qualificação, Diagnóstico, Proposta, Negociação, Contrato, Piloto pagante, Cliente, Perdido) e campos estruturados (CNPJ, ICP, ponto focal, produto, modelo de negócio, responsável comercial, valor do contrato, previsão de assinatura por trimestre e a próxima tarefa com prazo e responsável).
+Em **Nova base de dados** há o modelo **CRM comercial**, espelhado na planilha CRM 2026.2: fases (Discovery, Proposta, Negociação, Jurídico, Cadastro de fornecedor, Contrato assinado, Perdido), score de fechamento, ICP, produto de interesse, modelo de negócio, valor da proposta e ARR estimado, atualizações e pasta no Drive, mais CNPJ, ponto focal, responsável comercial, previsão de assinatura por trimestre, próxima tarefa com prazo e responsável, e motivo da perda.
 
 - Cada fase tem campos esperados; o que falta aparece no item e no cartão do funil.
 - Todo lead novo já nasce com a ficha de qualificação no corpo da página.

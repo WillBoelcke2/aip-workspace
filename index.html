@@ -351,6 +351,7 @@ input[type=date]:hover::-webkit-calendar-picker-indicator,input[type=date]:focus
 .board{gap:16px}
 .col{background:var(--paper);border:1px solid transparent;border-radius:16px;padding:12px}
 .col.over{border-color:var(--text)}
+.col{grid-template-columns:minmax(0,1fr)}.card{min-width:0}.card .tags{min-width:0}
 .col-h b{color:var(--faint)}
 .card{background:var(--bg);border-color:var(--line);box-shadow:0 1px 2px rgba(20,22,28,.04);padding:12px 16px}
 .card:hover{border-color:var(--line-2)}
@@ -408,9 +409,9 @@ td:hover .reladd,.pval .reladd,.reladd:focus-visible{opacity:1}
 .imgb{flex:1;display:block;margin:4px 0}
 .imgb img{max-width:100%;max-height:640px;border-radius:12px;display:block;border:1px solid var(--line)}
 .pagelink small{color:var(--faint);font-weight:400;font-size:13px}
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
 .tile{border:1px solid var(--line);border-radius:16px;padding:16px 20px;display:grid;gap:4px}
-.tile b{font:700 36px/1 var(--display);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.tile b{font:700 clamp(22px,2.4vw,36px)/1 var(--display);letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap}
 .tile span{color:var(--muted);font-size:13px}
 .tile.warn b{color:#C22848}
 .prog{display:grid;grid-template-columns:minmax(0,1.4fr) auto minmax(90px,1fr) auto;gap:12px;align-items:center;padding:8px;border-radius:var(--r-s)}
@@ -648,23 +649,29 @@ function fromTemplate(kind){
     if(metas)p.schema.props.push(rel("Meta",metas));if(proj)p.schema.props.push(rel("Projeto",proj));if(reun)p.schema.props.push(rel("Reunião",reun));
     p.views=[V("Quadro","board",{group:st}),V("Todas","table"),V("Por responsável","board",{group:who}),V("Prazos","calendar",{dateProp:due})];
   }else if(kind==="crm"){
-    const fases=[["Lead","gray"],["Qualificação","mist"],["Diagnóstico","purple"],["Proposta","yellow"],["Negociação","orange"],["Contrato","pink"],["Piloto pagante","mint"],["Cliente","mint"],["Perdido","gray"]].map(([n,c])=>O(n,c));
-    const I={cnpj:rid(),icp:rid(),pf:rid(),mail:rid(),tel:rid(),prod:rid(),mod:rid(),val:rid(),close:rid(),next:rid(),nwho:rid()};
+    const F=[["Discovery","gray"],["Proposta","yellow"],["Negociação","orange"],["Jurídico","purple"],["Cadastro de fornecedor","mist"],["Contrato assinado","mint"],["Perdido","gray"]].map(([n,c])=>O(n,c));
+    const I={cnpj:rid(),icp:rid(),pf:rid(),mail:rid(),tel:rid(),prod:rid(),mod:rid(),val:rid(),arr:rid(),score:rid(),close:rid(),next:rid(),nwho:rid(),upd:rid(),loss:rid(),link:rid()};
     const now=new Date(),qs=[];let y=now.getFullYear(),q=Math.floor(now.getMonth()/3)+1;for(let i=0;i<6;i++){qs.push(O("Q"+q+" "+y,COLORS[i%6]));if(++q>4){q=1;y++;}}
-    p.schema={props:[{id:"title",name:"Empresa",type:"title"},{id:st,name:"Fase",type:"status",key:"stage",options:fases},
-      {id:I.cnpj,name:"CNPJ",type:"text",key:"cnpj"},{id:I.icp,name:"ICP",type:"select",options:[O("Saúde","mint"),O("Corporate","purple"),O("Integrador","yellow")]},
-      {id:I.pf,name:"Ponto focal",type:"text"},{id:I.mail,name:"E-mail do ponto focal",type:"text"},{id:I.tel,name:"Telefone do ponto focal",type:"text"},
-      {id:I.prod,name:"Produto",type:"multi",options:[O("Nevo Triagem","mint"),O("Nevo Diagnóstico","mist"),O("nevo. VISION","purple"),O("Selo de segurança","yellow")]},
-      {id:I.mod,name:"Modelo de negócio",type:"select",options:[O("Por vida elegível","mint"),O("Por laudo","mist"),O("Mensalidade por unidade","yellow"),O("API","purple"),O("Projeto fechado","gray")]},
+    const opts=(list)=>list.map((n,i)=>O(n,COLORS[i%7]));
+    p.schema={props:[{id:"title",name:"Empresa",type:"title"},{id:st,name:"Fase atual",type:"status",key:"stage",options:F},
+      {id:I.score,name:"Score de fechamento",type:"number",format:"pct",key:"score"},
+      {id:I.icp,name:"ICP",type:"select",key:"icp",options:opts(["Operadora / Autogestão","RH Saúde Ocupacional","Plataforma de Telemedicina","Laboratório","Seguradora","Indústria Farmacêutica","Clínica Popular","Outro"])},
+      {id:I.prod,name:"Produto de interesse",type:"select",key:"product",options:opts(["NEVO","NEVO + Dermatoscopia","NEVO + Dermatoscopia + Laudo"])},
+      {id:I.mod,name:"Modelo de negócio",type:"select",options:opts(["API + Pacote de imagens","Projeto Piloto (com custo)","Pacote de imagens","Campanha de Ativação","SaaS"])},
+      {id:I.val,name:"Valor da proposta",type:"number",format:"brl",key:"value"},{id:I.arr,name:"Valor estimado ARR",type:"number",format:"brl",key:"arr"},
+      {id:I.close,name:"Previsão de assinatura",type:"select",key:"close",options:qs},
       {id:who,name:"Responsável comercial",type:"person",options:personOpts()},
-      {id:I.val,name:"Valor total do contrato",type:"number",format:"brl",key:"value"},{id:I.close,name:"Previsão de assinatura",type:"select",key:"close",options:qs},
-      {id:I.next,name:"Próxima tarefa",type:"text",key:"next"},{id:due,name:"Prazo da próxima tarefa",type:"date",key:"nextDue"},{id:I.nwho,name:"Responsável pela próxima tarefa",type:"person",key:"nextWho",options:personOpts()}]};
-    // campos esperados em cada fase (acumulam conforme o lead avança)
-    const r1=[I.icp,I.pf,I.mail,who],r2=[...r1,I.prod],r3=[...r2,I.mod,I.val,I.close],r4=[...r3,I.cnpj,I.next,due,I.nwho];
-    p.req={[fases[1].id]:r1,[fases[2].id]:r2,[fases[3].id]:r3,[fases[4].id]:r4,[fases[5].id]:r4,[fases[6].id]:r3.concat(I.cnpj),[fases[7].id]:r3.concat(I.cnpj)};
-    p.won=[fases[6].id,fases[7].id];p.lost=[fases[8].id];
+      {id:I.next,name:"Próxima tarefa",type:"text",key:"next"},{id:due,name:"Prazo da próxima tarefa",type:"date",key:"nextDue"},{id:I.nwho,name:"Responsável pela próxima tarefa",type:"person",key:"nextWho",options:personOpts()},
+      {id:I.upd,name:"Atualizações",type:"text"},
+      {id:I.cnpj,name:"CNPJ",type:"text",key:"cnpj"},{id:I.pf,name:"Ponto focal",type:"text"},{id:I.mail,name:"E-mail do ponto focal",type:"text"},{id:I.tel,name:"Telefone do ponto focal",type:"text"},
+      {id:I.link,name:"Pasta no Google Drive",type:"url"},
+      {id:I.loss,name:"Motivo da perda",type:"select",key:"loss",options:opts(["Perda de contato / Sem retorno (Ghosting)","Preço","Sem verba","Sem prioridade agora","Escolheu outra solução","Fora do ICP"])}]};
+    // campos esperados em cada fase (acumulam conforme o negócio avança)
+    const r0=[I.icp,I.prod,who],r1=[...r0,I.mod,I.val,I.pf,I.mail],r2=[...r1,I.score,I.close,I.next,due,I.nwho],r3=[...r2,I.cnpj];
+    p.req={[F[0].id]:r0,[F[1].id]:r1,[F[2].id]:r2,[F[3].id]:r3,[F[4].id]:r3,[F[5].id]:[I.icp,I.prod,who,I.mod,I.val,I.cnpj],[F[6].id]:[I.loss]};
+    p.won=[F[5].id];p.lost=[F[6].id];p.late=[F[2].id,F[3].id,F[4].id];
     const tid=rid();p.autoTpl=tid;p.templates=[{id:tid,name:"Ficha de qualificação",blocks:[["h2","Dor e contexto"],["p",""],["h2","Qualificação"],["todo","Fonte de verba identificada"],["todo","Falamos com quem decide"],["todo","A dor é prioridade agora"],["todo","Há prazo para decidir"],["h2","Pessoas envolvidas"],["ul",""],["h2","Objeções e riscos"],["ul",""],["h2","Histórico de contatos"],["ul",""]].map(x=>({id:rid(),t:x[0],h:x[1]}))}];
-    p.views=[V("Funil","board",{group:st}),V("Todas","table"),V("Por responsável","board",{group:who}),V("Previsão de assinatura","board",{group:I.close}),V("Próximas tarefas","calendar",{dateProp:due})];
+    p.views=[V("Funil","board",{group:st}),V("Todas","table"),V("Por ICP","board",{group:I.icp}),V("Por responsável","board",{group:who}),V("Previsão de assinatura","board",{group:I.close}),V("Próximas tarefas","calendar",{dateProp:due})];
   }else{
     p.schema={props:[{id:"title",name:"Meta",type:"title"},{id:st,name:"Status",type:"status",options:[O("No rumo","mint"),O("Em risco","yellow"),O("Atrasada","pink"),O("Concluída","mist")]},
       {id:who,name:"Responsável",type:"person",options:personOpts()},{id:rid(),name:"Período",type:"select",options:[]},{id:rid(),name:"Indicador",type:"text"},{id:rid(),name:"Atual",type:"number"},{id:rid(),name:"Alvo",type:"number"},{id:due,name:"Prazo",type:"date"}]};
@@ -1174,6 +1181,7 @@ function showVal(row,pr){
   if(pr.type==="date")return el("span",{class:"tag c-gray"},fmtDate(v));
   if(pr.type==="checkbox")return v?el("span",{class:"tag c-mint"},pr.name):null;
   if(pr.type==="number"&&pr.format==="brl"&&typeof v==="number")return el("span",{class:"tag c-gray"},brl(v));
+  if(pr.type==="number"&&pr.format==="pct"&&typeof v==="number")return el("span",{class:"tag c-gray"},v.toLocaleString("pt-BR")+"%");
   return el("span",{class:"tag c-gray"},String(v));
 }
 function visible(d,v){
@@ -1273,7 +1281,7 @@ function sortPop(anchor,d){
 function drawBody(d){
   const b=$("#dbbody");if(!b)return;b.textContent="";const v=curView(d),rows=visible(d,v);
   ({table:drawTable,board:drawBoard,list:drawList,calendar:drawCal}[v.type]||drawTable)(b,d,v,rows);
-  const total=rowsOf(d).length,sums=props(d).filter(p=>p.type==="number").map(p=>{const xs=rows.map(r=>r.props?.[p.id]).filter(x=>typeof x==="number");return xs.length?el("span",null,p.name+": "+(p.format==="brl"?brl(xs.reduce((a,c)=>a+c,0)):xs.reduce((a,c)=>a+c,0).toLocaleString("pt-BR"))):null;}).filter(Boolean);
+  const total=rowsOf(d).length,sums=props(d).filter(p=>p.type==="number").map(p=>{const xs=rows.map(r=>r.props?.[p.id]).filter(x=>typeof x==="number");return xs.length&&p.format!=="pct"?el("span",null,p.name+": "+(p.format==="brl"?brl(xs.reduce((a,c)=>a+c,0)):xs.reduce((a,c)=>a+c,0).toLocaleString("pt-BR"))):null;}).filter(Boolean);
   if(d.tpl==="crm"&&!total&&!S.ro){const src=[...S.pages.values()].find(x=>x.kind==="db"&&x!==d&&alive(x)&&/pipeline|funil/.test(norm(x.title))&&kids(x.id).length);
     if(src)b.prepend(el("div",{class:"gnote"},`A base ${src.title} tem ${kids(src.id).length} contas.`,el("button",{class:"btn line",onclick:()=>{importDeals(d,src);drawBody(d);toast("Contas trazidas. A base original continua como estava.");}},"Trazer para este CRM")));}
   b.append(el("div",{class:"foot"},rows.length===total?`${total} ${total===1?"item":"itens"}`:`${rows.length} de ${total} itens`,sums));
@@ -1345,7 +1353,7 @@ function drawTable(b,d,v,rows){
     el("button",{class:"addrow",onclick:()=>{const r=addRow(d);drawBody(d);const i=$(`[data-row="${r.id}"] .ttl`);if(i)i.focus();}},icon("plus"),"Novo item"));
   if(!rows.length&&rowsOf(d).length)b.append(el("div",{class:"none"},"Nenhum item corresponde ao filtro ou à busca."));
 }
-function cardProps(r,d,skip){return props(d).filter(p=>p.type!=="title"&&p.id!==skip).map(p=>showVal(r,p)).filter(Boolean).slice(0,4);}
+function cardProps(r,d,skip){return props(d).filter(p=>p.type!=="title"&&p.type!=="text"&&p.type!=="url"&&p.id!==skip).map(p=>showVal(r,p)).filter(Boolean).slice(0,4);}
 function drawBoard(b,d,v,rows){
   const cands=props(d).filter(p=>OPT(p.type)&&p.type!=="multi");const g=cands.find(p=>p.id===v.group)||cands[0];
   if(!g){b.append(el("div",{class:"hint"},"O quadro agrupa os itens por uma propriedade de Status, Seleção ou Pessoa. Esta base ainda não tem nenhuma.",
@@ -1592,7 +1600,9 @@ function panelView(){
   const vp=pipe&&keyProp(pipe,"value"),deals=pipe?kids(pipe.id).filter(r=>!pipe.tpl||isOpenDeal(pipe,r)):[],val=r=>vp&&typeof r.props?.[vp.id]==="number"?r.props[vp.id]:0,openVal=deals.reduce((a,r)=>a+val(r),0);
   const tile=(n,label,warn)=>el("div",{class:"tile"+(warn&&n?" warn":"")},el("b",null,String(n)),el("span",null,label));
   const wrap=el("div",{class:"home"},el("header",null,el("h1",null,"Painel"),el("div",{class:"sub"},"Calculado agora, a partir das bases que você pode ver.")),
-    el("div",{class:"tiles"},tile(metas.length?onTrack+"/"+metas.length:"0","metas no rumo ou concluídas"),tile(open.length,"tarefas abertas"),tile(late.length,"tarefas atrasadas",true),pipe&&tile(deals.length,pipe.tpl?"negócios em aberto":"contas em "+(pipe.title||"pipeline")),vp&&tile(brl(openVal),"em contratos em aberto")));
+    el("div",{class:"tiles"},tile(metas.length?onTrack+"/"+metas.length:"0","metas no rumo ou concluídas"),tile(open.length,"tarefas abertas"),tile(late.length,"tarefas atrasadas",true),pipe&&tile(deals.length,pipe.tpl?"negócios em aberto":"contas em "+(pipe.title||"pipeline")),vp&&tile(brl(openVal),"em propostas em aberto"),
+      vp&&keyProp(pipe,"score")&&tile(brl(deals.reduce((a,r)=>a+val(r)*(typeof r.props?.[keyProp(pipe,"score").id]==="number"?r.props[keyProp(pipe,"score").id]:0)/100,0)),"previsão ponderada pelo score"),
+      vp&&pipe.late&&tile(brl(deals.filter(r=>pipe.late.includes(r.props?.[keyProp(pipe,"stage").id])).reduce((a,r)=>a+val(r),0)),"em fase avançada (negociação em diante)")));
   /* metas */
   const sm=el("section",null,el("h2",null,"Metas"));
   if(!metasDbs.length)sm.append(el("div",{class:"hempty"},"Ainda não existe uma base de Metas.",!S.ro&&el("button",{class:"btn line",onclick:()=>go(fromTemplate("metas").id)},icon("plus"),"Criar base Metas")));
@@ -1613,7 +1623,8 @@ function panelView(){
   if(load.size){const max=Math.max(...load.values());dist.push(el("section",null,el("h2",null,"Tarefas abertas por pessoa"),[...load.entries()].sort((a,b)=>b[1]-a[1]).map(([k,n])=>el("div",{class:"brow"},el("span",{title:k},k),el("div",{class:"track"},el("i",{style:{width:Math.round(n/max*100)+"%"}})),el("small",null,n)))));}
   if(vp&&deals.length){const money=(title,pr)=>{const groups=(pr.options||[]).map(o=>({n:o.name,v:deals.filter(r=>r.props?.[pr.id]===o.id).reduce((a,r)=>a+val(r),0)})).filter(g=>g.v>0);if(!groups.length)return null;const max=Math.max(...groups.map(g=>g.v));
       return el("section",null,el("h2",null,title),groups.map(g=>el("div",{class:"brow",style:{"grid-template-columns":"160px minmax(0,1fr) 110px"}},el("span",{title:g.n},g.n),el("div",{class:"track"},el("i",{style:{width:Math.round(g.v/max*100)+"%"}})),el("small",null,brl(g.v)))));};
-    const cl=keyProp(pipe,"close"),stg=keyProp(pipe,"stage");[stg&&money("Valor em aberto por fase",stg),cl&&money("Valor em aberto por previsão de assinatura",cl)].filter(Boolean).forEach(x=>dist.unshift(x));}
+    const cl=keyProp(pipe,"close"),stg=keyProp(pipe,"stage"),ic=keyProp(pipe,"icp"),pd=keyProp(pipe,"product");
+    [pd&&money("Valor em aberto por produto",pd),ic&&money("Valor em aberto por ICP",ic),cl&&money("Valor em aberto por previsão de assinatura",cl),stg&&money("Valor em aberto por fase",stg)].filter(Boolean).forEach(x=>dist.unshift(x));}
   if(dist.length)wrap.append(el("div",{class:"cols2"},dist));
   /* prazos */
   const due=[...open.map(t=>({r:t.r,d:t.d,x:dueOf(t.d,t.r)})),...metas.filter(m=>!isDone(m.d,m.r)).map(m=>({r:m.r,d:m.d,x:dueOf(m.d,m.r)}))].filter(q=>q.x&&q.x<=soon).sort((a,b)=>a.x.localeCompare(b.x)).slice(0,12);
