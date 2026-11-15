@@ -217,7 +217,8 @@ tr:hover .open-btn,.open-btn:focus-visible{opacity:1}
 .li:hover{background:var(--hover)}
 .li strong{font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cal-h{display:flex;align-items:center;gap:8px;padding:4px 0 10px}
-.cal-h h3{font:600 18px var(--display);margin:0 8px 0 0;text-transform:capitalize}
+.cal-h h3{font:600 18px var(--display);margin:0 8px 0 0}
+.cal-h h3::first-letter{text-transform:uppercase}
 .cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .cal .dow{padding:6px 8px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);border-bottom:1px solid var(--line);background:var(--bg-2)}
 .day{min-height:104px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:6px;display:grid;gap:4px;align-content:start;position:relative}
@@ -372,6 +373,15 @@ input[type=date]:hover::-webkit-calendar-picker-indicator,input[type=date]:focus
   #app.nav #side{box-shadow:24px 0 64px rgba(20,22,28,.14)}
   .doc{padding:32px 20px 30vh}.title{font-size:32px}.dbpage{padding:28px 16px 100px}
 }
+.ev.g{border-style:dashed;border-color:var(--line-2);color:var(--muted);background:none;display:flex;gap:6px}
+.ev.g b{font-weight:400;color:var(--faint);font-variant-numeric:tabular-nums;flex:none}
+.ev.g span{overflow:hidden;text-overflow:ellipsis}
+.gnote{color:var(--muted);font-size:13px;padding:0 0 12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.gnote a{color:var(--text)}
+.btn{text-decoration:none}
+.gpop{display:grid;gap:8px;padding:8px;min-width:260px}
+.gpop b{font:600 16px/1.3 var(--display)}
+.gpop small{color:var(--muted);font-size:13px}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;display:grid;place-items:center;padding:24px}
 .gate-box{display:grid;gap:16px;justify-items:start;max-width:420px}
 .gate-box .logo{height:28px;margin-bottom:24px}
@@ -1023,17 +1033,22 @@ function drawCal(b,d,v,rows){
     el("button",{class:"btn pri","data-w":1,onclick:()=>{const p={id:rid(),name:"Data",type:"date"};d.schema.props.push(p);v.dateProp=p.id;save(d);drawBody(d);}},"Criar propriedade Data")));return;}
   const cur=S.cal[d.id]||(S.cal[d.id]=new Date(new Date().getFullYear(),new Date().getMonth(),1));
   const move=n=>{S.cal[d.id]=n===0?new Date(new Date().getFullYear(),new Date().getMonth(),1):new Date(cur.getFullYear(),cur.getMonth()+n,1);drawBody(d);};
+  const [gBtn,gNote,gEvents]=gcalBar(d,v,cur);
+  const linked=new Set(rowsOf(d).map(r=>r.gcal&&r.gcal.id).filter(Boolean));
   b.append(el("div",{class:"cal-h"},el("h3",null,cur.toLocaleDateString("pt-BR",{month:"long",year:"numeric"})),
     el("button",{class:"tbtn",title:"Mês anterior","aria-label":"Mês anterior",onclick:()=>move(-1)},icon("left")),
     el("button",{class:"btn line",onclick:()=>move(0)},"Hoje"),
-    el("button",{class:"tbtn",title:"Próximo mês","aria-label":"Próximo mês",onclick:()=>move(1)},icon("chev"))));
+    el("button",{class:"tbtn",title:"Próximo mês","aria-label":"Próximo mês",onclick:()=>move(1)},icon("chev")),
+    el("span",{style:{flex:"1"}}),gBtn));
+  if(gNote)b.append(gNote);
   const grid=el("div",{class:"cal"},["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"].map(x=>el("div",{class:"dow"},x)));
   const start=new Date(cur);start.setDate(1-((cur.getDay()+6)%7));const today=iso(new Date());
   const weeks=Math.ceil((((cur.getDay()+6)%7)+new Date(cur.getFullYear(),cur.getMonth()+1,0).getDate())/7);
   for(let i=0;i<weeks*7;i++){const dt=new Date(start.getFullYear(),start.getMonth(),start.getDate()+i),k=iso(dt);
     grid.append(el("div",{class:"day"+(dt.getMonth()!==cur.getMonth()?" out":"")+(k===today?" today":"")},
       el("div",{class:"dn"},el("span",null,dt.getDate()),el("button",{"data-w":1,title:"Novo item em "+fmtDate(k),"aria-label":"Novo item em "+fmtDate(k),onclick:()=>{const r=addRow(d,{[dp.id]:k});drawBody(d);openPeek(r.id);}},icon("plus"))),
-      rows.filter(r=>r.props?.[dp.id]===k).map(r=>el("button",{class:"ev",title:r.title||"Sem título",onclick:()=>openPeek(r.id)},r.title||"Sem título"))));}
+      rows.filter(r=>r.props?.[dp.id]===k).map(r=>el("button",{class:"ev",title:r.title||"Sem título",onclick:()=>openPeek(r.id)},r.title||"Sem título")),
+      gEvents.filter(e=>e.date===k&&!linked.has(e.id)).map(e=>el("button",{class:"ev g",title:(e.time?e.time+" ":"")+e.title+" (Google Agenda)",onclick:x=>gcalPop(x.currentTarget,d,dp,e)},e.time&&el("b",null,e.time),el("span",null,e.title)))));}
   b.append(el("div",{class:"scroll-x"},el("div",{style:{"min-width":"640px"}},grid)));
   const und=rows.filter(r=>!r.props?.[dp.id]).length;if(und)b.append(el("div",{class:"none"},`${und} ${und===1?"item sem data não aparece":"itens sem data não aparecem"} no calendário.`));
 }
@@ -1085,12 +1100,79 @@ $("#work").addEventListener("mousedown",e=>{if(S.peek&&!e.target.closest("#peek"
 window.addEventListener("hashchange",route);
 $("#main").addEventListener("scroll",closeSlash,{passive:true});
 
+/* ============ Google: token e Agenda ============ */
+const SCOPE_CAL="https://www.googleapis.com/auth/calendar.events.readonly";
+const G={token:null,exp:0,scopes:[],cal:{},err:""};
+try{const t=JSON.parse(sessionStorage.getItem("aip-g")||"null");if(t&&t.exp>Date.now())Object.assign(G,t,{cal:{},err:""});}catch(_){}
+const esc=t=>String(t??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const gHas=sc=>!!G.token&&Date.now()<G.exp&&sc.every(x=>G.scopes.includes(x));
+async function gConnect(sc){ // precisa partir de um clique: abre a janela de permissão do Google
+  const p=new firebase.auth.GoogleAuthProvider(),all=[...new Set([...G.scopes,...sc])];all.forEach(x=>p.addScope(x));
+  p.setCustomParameters(Object.assign({login_hint:me.email},CFG.domain?{hd:CFG.domain}:{}));
+  try{const r=await auth.currentUser.reauthenticateWithPopup(p);const tk=r&&r.credential&&r.credential.accessToken;if(!tk)throw{code:"no-token"};
+    G.token=tk;G.exp=Date.now()+50*60e3;G.scopes=all;G.err="";G.cal={};
+    try{sessionStorage.setItem("aip-g",JSON.stringify({token:G.token,exp:G.exp,scopes:G.scopes}));}catch(_){}
+    return true;}
+  catch(e){const c=e&&e.code;
+    if(c==="auth/popup-closed-by-user"||c==="auth/cancelled-popup-request")return false;
+    toast(c==="auth/popup-blocked"?"O navegador bloqueou a janela do Google. Permita pop-ups para este site e tente de novo.":c==="auth/user-mismatch"?"Escolha a mesma conta Google com que você entrou no workspace.":"Não foi possível conectar ao Google. Tente de novo.");return false;}
+}
+async function gFetch(url){
+  const r=await fetch(url,{headers:{Authorization:"Bearer "+G.token}});
+  if(r.status===401){G.token=null;G.exp=0;try{sessionStorage.removeItem("aip-g");}catch(_){}throw{kind:"expired"};}
+  if(!r.ok){let body={};try{body=await r.json();}catch(_){}const msg=JSON.stringify(body);
+    throw{kind:r.status===403&&/SERVICE_DISABLED|accessNotConfigured|has not been used|is disabled/i.test(msg)?"disabled":r.status===403?"forbidden":"http",status:r.status};}
+  return r.json();
+}
+const monthKey=dt=>dt.getFullYear()+"-"+(dt.getMonth()+1);
+function gcalLoad(cur,d){
+  const key=monthKey(cur);if(G.cal[key])return G.cal[key];
+  const st=G.cal[key]={loading:true,events:[]};
+  const from=new Date(cur.getFullYear(),cur.getMonth(),-6),to=new Date(cur.getFullYear(),cur.getMonth()+1,7);
+  const url="https://www.googleapis.com/calendar/v3/calendars/primary/events?singleEvents=true&orderBy=startTime&maxResults=500&timeMin="+encodeURIComponent(from.toISOString())+"&timeMax="+encodeURIComponent(to.toISOString())+"&fields="+encodeURIComponent("items(id,status,summary,htmlLink,hangoutLink,start,end,attendees(email,displayName,self,responseStatus))");
+  gFetch(url).then(j=>{st.loading=false;st.events=(j.items||[]).filter(e=>e.status!=="cancelled").map(e=>{
+      const allDay=!!(e.start&&e.start.date),s0=allDay?null:new Date(e.start.dateTime),e0=allDay||!e.end?null:new Date(e.end.dateTime);
+      const hm=x=>x?String(x.getHours()).padStart(2,"0")+":"+String(x.getMinutes()).padStart(2,"0"):"";
+      return{id:e.id,title:e.summary||"(sem título)",link:e.htmlLink||"",meet:e.hangoutLink||"",date:allDay?e.start.date:iso(s0),time:hm(s0),end:hm(e0),
+        who:(e.attendees||[]).filter(a=>!a.self).map(a=>a.displayName||a.email).filter(Boolean)};});G.err="";})
+    .catch(e=>{st.loading=false;delete G.cal[key];G.err=e&&e.kind||"http";})
+    .finally(()=>{const x=page(S.cur);if(x&&x.id===d.id&&curView(x).type==="calendar")drawBody(x);});
+  return st;
+}
+function gcalBar(d,v,cur){
+  // devolve [botão do cabeçalho, aviso opcional, eventos do mês]
+  if(!me||!auth)return[null,null,[]];
+  if(!v.gcal)return[el("button",{class:"btn line","data-w":1,onclick:async()=>{if(!gHas([SCOPE_CAL])&&!(await gConnect([SCOPE_CAL])))return;v.gcal=true;save(d);drawBody(d);}},icon("calendar"),"Mostrar Google Agenda"),null,[]];
+  const off=el("button",{class:"btn",onclick:e=>pop(e.currentTarget,[mi("Ocultar a Google Agenda nesta visualização","x",()=>{delete v.gcal;save(d);drawBody(d);}),mi("Atualizar eventos","sort",()=>{G.cal={};drawBody(d);})])},icon("calendar"),"Google Agenda");
+  const reconnect=txt=>el("button",{class:"btn line",onclick:async()=>{if(await gConnect([SCOPE_CAL])){G.err="";drawBody(d);}}},txt);
+  if(!gHas([SCOPE_CAL]))return[off,el("div",{class:"gnote"},"Esta visualização mostra a Google Agenda de quem estiver com ela conectada.",reconnect("Conectar minha agenda")),[]];
+  if(G.err==="disabled")return[off,el("div",{class:"gnote"},"A Google Calendar API ainda não está ativada no projeto.",el("a",{href:"https://console.cloud.google.com/apis/library/calendar-json.googleapis.com?project="+encodeURIComponent(CFG.firebase.projectId),target:"_blank",rel:"noopener"},"Abrir a página de ativação"),reconnect("Tentar de novo")),[]];
+  if(G.err)return[off,el("div",{class:"gnote"},G.err==="expired"?"A conexão com o Google expirou.":"Não foi possível ler a agenda agora.",reconnect(G.err==="expired"?"Reconectar":"Tentar de novo")),[]];
+  const st=gcalLoad(cur,d);
+  return[off,st.loading?el("div",{class:"gnote"},"Carregando a agenda…"):null,st.events];
+}
+function gcalPop(anchor,d,dp,ev){
+  pop(anchor,el("div",{class:"gpop"},el("small",null,fmtDate(ev.date)+(ev.time?", "+ev.time+(ev.end?" a "+ev.end:""):", dia inteiro")),el("b",null,ev.title),
+    ev.who.length?el("small",null,ev.who.length+(ev.who.length===1?" participante além de você":" participantes além de você")):null,
+    !S.ro&&el("button",{class:"btn pri",onclick:()=>{closePop();const r=fromEvent(d,dp,ev);drawBody(d);openPeek(r.id);}},"Criar item com ata"),
+    ev.link&&el("a",{class:"btn line",href:ev.link,target:"_blank",rel:"noopener"},"Abrir no Google Agenda")),{focus:"x-none"});
+}
+function fromEvent(d,dp,ev){
+  const r=addRow(d,{[dp.id]:ev.date});r.title=ev.title;r.gcal={id:ev.id,link:ev.link};
+  const B=(t,h,x)=>Object.assign({id:rid(),t,h},x||{});
+  r.blocks=[B("p","<b>Quando:</b> "+fmtDate(ev.date)+(ev.time?", "+ev.time+(ev.end?" a "+ev.end:""):", dia inteiro")),
+    ev.who.length&&B("p","<b>Participantes:</b> "+esc(ev.who.join(", "))),
+    ev.link&&/^https:\/\//.test(ev.link)&&B("p",'<a href="'+esc(ev.link).replace(/"/g,"&quot;")+'">Evento no Google Agenda</a>'),
+    B("h2","Pauta"),B("ul",""),B("h2","Decisões"),B("ul",""),B("h2","Próximos passos"),B("todo","",{c:false})].filter(Boolean);
+  save(r);return r;
+}
+
 /* ============ conta, backup e início ============ */
 function accountMenu(anchor){
   pop(anchor,[el("h6",null,me.email),
     mi("Exportar backup (JSON)","page",exportData),
     mi("Importar JSON","plus",()=>$("#imp-file").click()),
-    el("hr"),mi("Sair","x",()=>auth.signOut())]);
+    el("hr"),mi("Sair","x",()=>{G.token=null;G.exp=0;G.cal={};try{sessionStorage.removeItem("aip-g");}catch(_){}auth.signOut();})]);
 }
 function exportData(){
   const blob=new Blob([JSON.stringify([...S.pages.values()],null,1)],{type:"application/json"}),a=el("a",{href:URL.createObjectURL(blob),download:"aip-workspace-"+iso(new Date())+".json"});

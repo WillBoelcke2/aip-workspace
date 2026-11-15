@@ -65,3 +65,12 @@ No Firebase, abra **Authentication**, **Settings**, **Authorized domains**, cliq
 | Este endereço ainda não está autorizado | Passo 6. |
 | O login com Google ainda não foi ativado | Passo 2. |
 | O banco recusou a leitura ou a gravação | As regras não foram publicadas (passo 3) ou a conta não é do domínio. |
+
+## Google Agenda nas bases de dados
+
+Em qualquer visualização de calendário há o botão **Mostrar Google Agenda**. Cada pessoa vê a própria agenda, só leitura. Clicar em um evento permite criar um item com ata.
+
+Configuração única, feita por quem criou o projeto:
+
+1. Ative a Google Calendar API: https://console.cloud.google.com/apis/library/calendar-json.googleapis.com?project=aip-workspace
+2. Em https://console.cloud.google.com/auth/audience?project=aip-workspace, deixe o tipo de usuário como **Interno**. Assim só contas da empresa autorizam o acesso e o Google não mostra o aviso de app não verificado.
