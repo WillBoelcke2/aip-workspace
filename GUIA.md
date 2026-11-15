@@ -74,3 +74,29 @@ Configuração única, feita por quem criou o projeto:
 
 1. Ative a Google Calendar API: https://console.cloud.google.com/apis/library/calendar-json.googleapis.com?project=aip-workspace
 2. Em https://console.cloud.google.com/auth/audience?project=aip-workspace, deixe o tipo de usuário como **Interno**. Assim só contas da empresa autorizam o acesso e o Google não mostra o aviso de app não verificado.
+
+## Papéis de acesso e páginas restritas
+
+Depende das regras novas do arquivo `firestore.rules` (Firestore, aba Regras, colar e publicar).
+
+- **Dono**: a primeira conta do domínio que entrar no app depois de publicar as regras novas. Entre você primeiro, antes de enviar o link ao time.
+- **Papéis**: Administrador, Editor (padrão de quem entra) e Leitor. O dono e os administradores mudam os papéis em: seu nome, no rodapé, **Pessoas e acessos**. A lista mostra quem já entrou pelo menos uma vez.
+- **Restringir uma área**: no menu `...` de uma página ou base, **Restringir a administradores**. Vale para tudo que estiver dentro dela, inclusive itens novos.
+
+Se algo der errado depois de publicar as regras novas, volte às regras anteriores (abaixo) e publique de novo. O app continua funcionando sem papéis.
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function membro() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.matches('.*@aipathology[.]com[.]br$');
+    }
+    match /pages/{id} {
+      allow read, write: if membro();
+    }
+  }
+}
+```

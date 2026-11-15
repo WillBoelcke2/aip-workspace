@@ -1,14 +1,49 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Só contas Google verificadas do domínio da empresa leem e escrevem.
+
+    function email() { return request.auth.token.email; }
+
+    // Só contas Google verificadas do domínio da empresa.
     function membro() {
       return request.auth != null
         && request.auth.token.email_verified == true
-        && request.auth.token.email.matches('.*@aipathology[.]com[.]br$');
+        && email().matches('.*@aipathology[.]com[.]br$');
     }
+    function papel() {
+      return exists(/databases/$(database)/documents/members/$(email()))
+        ? get(/databases/$(database)/documents/members/$(email())).data.get('role', 'editor')
+        : 'editor';
+    }
+    function dono() {
+      return exists(/databases/$(database)/documents/settings/owner)
+        && get(/databases/$(database)/documents/settings/owner).data.email == email();
+    }
+    function admin() { return membro() && (dono() || papel() == 'admin'); }
+    function edita() { return membro() && (dono() || papel() != 'leitor'); }
+
+    // Páginas e itens. lock == true: só administradores leem e alteram.
     match /pages/{id} {
-      allow read, write: if membro();
+      allow read: if admin() || (membro() && resource.data.lock == false);
+      allow create: if admin() || (edita() && request.resource.data.lock == false);
+      allow update: if admin() || (edita() && resource.data.lock == false && request.resource.data.lock == false);
+      allow delete: if admin() || (edita() && resource.data.lock == false);
+    }
+
+    // Quem já entrou e o papel de cada um. Só administradores mudam papéis.
+    match /members/{m} {
+      allow read: if membro();
+      allow create: if admin() || (membro() && m == email() && !('role' in request.resource.data));
+      allow update: if admin() || (membro() && m == email()
+        && request.resource.data.get('role', null) == resource.data.get('role', null));
+      allow delete: if admin();
+    }
+
+    // Dono do workspace: a primeira conta do domínio que entrar depois de publicar estas regras.
+    match /settings/owner {
+      allow read: if membro();
+      allow create: if membro() && request.resource.data.email == email();
+      allow update, delete: if dono();
     }
   }
 }
