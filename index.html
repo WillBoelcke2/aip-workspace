@@ -283,6 +283,7 @@ body{font-size:16px;line-height:1.6}
 .srow,.node{color:var(--text-2)}
 .srow:hover,.node:hover{background:var(--hover);color:var(--text)}
 .srow kbd{border-color:var(--line);color:var(--faint)}
+.srow.on{background:var(--active);color:var(--text);font-weight:600}
 .sec{color:var(--faint);padding:20px 8px 8px}
 .node.on{background:var(--active);color:var(--text)}.node.on a{font-weight:600}.node.on::before{display:none}
 .node .tw,.node .acts button{color:var(--faint)}
@@ -381,6 +382,24 @@ a.tag{text-decoration:none}a.tag:hover{filter:brightness(.95)}
 .reladd{width:22px;height:22px;display:grid;place-items:center;border-radius:6px;color:var(--faint);opacity:0}
 .reladd:hover{background:var(--active);color:var(--text)}
 td:hover .reladd,.pval .reladd,.reladd:focus-visible{opacity:1}
+.home{max-width:820px;margin:0 auto;padding:64px 56px 120px;display:grid;gap:40px}
+.home h1{font:700 44px/1.1 var(--display);letter-spacing:-.025em;margin:0;text-wrap:balance}
+.home .sub{color:var(--muted);margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.home .sub select{border:0;background:none;color:var(--text);font-weight:600;padding:0 2px;cursor:pointer}
+.home section{display:grid;gap:4px}
+.home h2{font:400 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:0 0 8px;display:flex;justify-content:space-between;align-items:center}
+.home h3{font:600 14px var(--display);margin:12px 0 4px;color:var(--text-2)}
+.hrow{display:flex;align-items:center;gap:12px;padding:8px;border-radius:var(--r-s);min-height:40px}
+.hrow:hover{background:var(--hover)}
+.hrow a{flex:1;min-width:0;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hrow small{color:var(--muted);font-size:13px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.hrow small.late{color:#C22848;font-weight:600}
+.hrow .chk{width:18px;height:18px;border:1.5px solid var(--line-2);border-radius:50%;flex:none;display:grid;place-items:center;color:transparent}
+.hrow .chk:hover{border-color:var(--text);color:var(--faint)}
+.hrow .chk svg{width:12px;height:12px;stroke-width:2.4}
+.hrow time{color:var(--muted);font-variant-numeric:tabular-nums;font-size:14px;width:48px;flex:none}
+.hempty{color:var(--muted);padding:8px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+@media (max-width:820px){.home{padding:32px 20px 100px}.home h1{font-size:32px}}
 .ev.g{border-style:dashed;border-color:var(--line-2);color:var(--muted);background:none;display:flex;gap:6px}
 .ev.g b{font-weight:400;color:var(--faint);font-variant-numeric:tabular-nums;flex:none}
 .ev.g span{overflow:hidden;text-overflow:ellipsis}
@@ -527,6 +546,7 @@ function onSnap(snap){
   status();
 }
 function remote(changed){
+  if(S.home){renderSide();renderMain(true);return;}
   if(!page(S.cur)||!alive(page(S.cur)))return route();
   renderSide();
   const cur=page(S.cur);
@@ -571,15 +591,15 @@ function fromTemplate(kind){
   save(p);return p;
 }
 function trash(id){const p=page(id);if(!p)return;p.trashed=true;save(p);if(S.peek===id){S.peek=null;}
-  if(S.cur===id||!alive(page(S.cur)||{trashed:true})){const first=kids(null)[0];go(first?first.id:null);}else{renderAll();}
+  if(S.cur===id||(S.cur&&!alive(page(S.cur)||{trashed:true}))){go(null);}else{renderAll();}
   toast("Movido para a lixeira");}
 
 /* ============ navegação ============ */
 function go(id){const h=id?"p-"+id:"";if(location.hash.slice(1)===h){route();}else location.hash=h;}
 function route(){
   const m=location.hash.match(/^#p-([a-z0-9_-]+)$/i);let id=m?m[1]:null;
-  if(!id||!page(id)||!alive(page(id))){const f=kids(null)[0];id=f?f.id:null;}
-  S.cur=id;S.peek=null;
+  if(!id||!page(id)||!alive(page(id)))id=null;
+  S.home=!id;S.cur=id;S.peek=null;
   path(page(id)).forEach(p=>S.open.add(p.id));
   $("#app").classList.remove("nav");
   renderAll();
@@ -593,6 +613,7 @@ function renderSide(){
   s.append(
     el("div",{class:"ws"},logo(),el("div",{class:"ws-sub"},"Workspace interno")),
     el("div",{class:"side-actions"},
+      el("a",{class:"srow"+(S.home?" on":""),href:"#hoje",style:{"text-decoration":"none"},onclick:()=>{if(S.home)$("#app").classList.remove("nav");}},icon("calendar"),"Hoje"),
       el("button",{class:"srow",onclick:openSearch},icon("search"),"Buscar",el("kbd",null,"Ctrl K")),
       el("button",{class:"srow","data-w":1,onclick:()=>go(newPage(null,"page").id)},icon("plus"),"Nova página"),
       el("button",{class:"srow","data-w":1,onclick:e=>pop(e.currentTarget,[el("h6",null,"Nova base de dados"),mi("Em branco","db",()=>go(newPage(null,"db","").id)),mi("Tarefas","list",()=>go(fromTemplate("tarefas").id)),mi("Metas","board",()=>go(fromTemplate("metas").id))])},icon("db"),"Nova base de dados")));
@@ -647,6 +668,7 @@ function renderTop(){
   const t=$("#top");t.textContent="";const p=page(S.cur);
   const cr=el("nav",{class:"crumbs","aria-label":"Caminho"});
   path(p).forEach((x,i)=>{if(i)cr.append(el("i",null,"/"));cr.append(el("a",{href:"#p-"+x.id},x.title||"Sem título"));});
+  if(S.home&&S.pages.size)cr.append(el("a",{href:"#hoje"},"Hoje"));
   t.append(el("button",{id:"menu-btn","aria-label":"Abrir navegação",onclick:()=>$("#app").classList.toggle("nav")},icon("menu")),cr,
     el("div",{id:"status",class:"status"},el("span",null,"")));
   if(p)t.append(
@@ -677,6 +699,7 @@ function renderMain(keepScroll){
   document.body.classList.toggle("ro",S.ro);
   if(S.mode==="loading"){m.append(el("div",{class:"center"},el("div",{class:"blank"},el("h2",null,"Abrindo o workspace…"),el("p",null,S.slow?"O servidor ainda não respondeu. A página continua tentando; os dados aparecem assim que a conexão voltar.":"Carregando páginas e bases de dados."))));return;}
   const p=page(S.cur);
+  if(S.home&&S.pages.size){m.append(homeView());if(keepScroll)m.scrollTop=sc;return;}
   if(!p){m.append(el("div",{class:"center"},el("div",{class:"blank"},el("h2",null,"O workspace está vazio"),
     el("p",null,S.ro?"Ainda não há páginas aqui.":"Crie a primeira página para escrever, ou uma base de dados para acompanhar projetos, contatos e reuniões."),
     !S.ro&&el("div",null,el("button",{class:"btn pri",onclick:()=>go(newPage(null,"page").id)},icon("plus"),"Nova página"),el("button",{class:"btn line",onclick:()=>go(newPage(null,"db").id)},icon("db"),"Nova base de dados")))));return;}
@@ -1190,7 +1213,7 @@ function gcalLoad(cur,d){
       return{id:e.id,title:e.summary||"(sem título)",link:e.htmlLink||"",meet:e.hangoutLink||"",date:allDay?e.start.date:iso(s0),time:hm(s0),end:hm(e0),
         who:(e.attendees||[]).filter(a=>!a.self).map(a=>a.displayName||a.email).filter(Boolean)};});G.err="";})
     .catch(e=>{st.loading=false;delete G.cal[key];G.err=e&&e.kind||"http";})
-    .finally(()=>{const x=page(S.cur);if(x&&x.id===d.id&&curView(x).type==="calendar")drawBody(x);});
+    .finally(()=>{const x=page(S.cur);if(S.home)renderMain(true);else if(x&&d&&x.id===d.id&&curView(x).type==="calendar")drawBody(x);});
   return st;
 }
 function gcalBar(d,v,cur){
@@ -1219,6 +1242,60 @@ function fromEvent(d,dp,ev){
     ev.link&&/^https:\/\//.test(ev.link)&&B("p",'<a href="'+esc(ev.link).replace(/"/g,"&quot;")+'">Evento no Google Agenda</a>'),
     B("h2","Pauta"),B("ul",""),B("h2","Decisões"),B("ul",""),B("h2","Próximos passos"),B("todo","",{c:false})].filter(Boolean);
   save(r);return r;
+}
+
+/* ============ página Hoje ============ */
+const DONE=/conclu|feit|done|finaliz|cancel|entreg/;
+function whoAmI(opts){
+  let saved=null;try{saved=localStorage.getItem("aip-me");}catch(_){}
+  if(saved){const o=opts.find(o=>norm(o.name)===norm(saved));if(o)return o;}
+  const first=norm(((me&&(me.displayName||me.email))||"").split(/[\s@.]/)[0]);
+  return opts.find(o=>{const f=norm(String(o.name).split(" ")[0]);return f&&first&&(f.startsWith(first)||first.startsWith(f));})||null;
+}
+function ago(ts){const m=Math.round((Date.now()-ts)/60000);if(m<1)return"agora";if(m<60)return"há "+m+" min";const h=Math.round(m/60);if(h<24)return"há "+h+" h";const d=Math.round(h/24);return d===1?"ontem":d<7?"há "+d+" dias":fmtDate(iso(new Date(ts)));}
+function homeView(){
+  const now=new Date(),today=iso(now),week=iso(new Date(now.getFullYear(),now.getMonth(),now.getDate()+7));
+  const hello=now.getHours()<12?"Bom dia":now.getHours()<18?"Boa tarde":"Boa noite",first=((me&&me.displayName)||"").split(" ")[0];
+  const dbs=[...S.pages.values()].filter(d=>d.kind==="db"&&alive(d));
+  /* tarefas */
+  const taskDbs=dbs.filter(d=>d.tpl==="tarefas"),names=[...new Set(taskDbs.flatMap(d=>props(d).filter(p=>p.type==="person").flatMap(p=>(p.options||[]).map(o=>o.name))))];
+  const meOpt=whoAmI(names.map(n=>({name:n}))),tasks=[];
+  taskDbs.forEach(d=>{const who=props(d).find(p=>p.type==="person"),st=props(d).find(p=>p.type==="status"),due=props(d).find(p=>p.type==="date");
+    const mine=who&&meOpt&&(who.options||[]).find(o=>norm(o.name)===norm(meOpt.name)),doneIds=new Set((st?.options||[]).filter(o=>DONE.test(norm(o.name))).map(o=>o.id)),doneOpt=(st?.options||[]).find(o=>/conclu|feit|done|finaliz|entreg/.test(norm(o.name)));
+    if(!mine)return;
+    kids(d.id).forEach(r=>{if(r.props?.[who.id]!==mine.id||(st&&doneIds.has(r.props?.[st.id])))return;tasks.push({r,d,st,doneOpt,due:due&&r.props?.[due.id]||""});});});
+  tasks.sort((a,b)=>(a.due||"9999").localeCompare(b.due||"9999"));
+  const groups=[["Atrasadas",t=>t.due&&t.due<today],["Hoje",t=>t.due===today],["Próximos 7 dias",t=>t.due>today&&t.due<=week],["Mais adiante",t=>t.due>week],["Sem prazo",t=>!t.due]];
+  const taskRow=t=>el("div",{class:"hrow"},
+    !S.ro&&t.doneOpt&&el("button",{class:"chk",title:"Marcar como "+t.doneOpt.name.toLowerCase(),"aria-label":"Concluir "+(t.r.title||"tarefa"),onclick:()=>{setVal(t.r,t.st,t.doneOpt.id);renderMain(true);toast("Tarefa concluída");}},icon("check")),
+    el("a",{href:"#p-"+t.r.id},t.r.title||"Sem título"),
+    t.st&&showVal(t.r,t.st),t.due&&el("small",{class:t.due<today?"late":""},fmtDate(t.due)));
+  const secTasks=el("section",null,el("h2",null,"Minhas tarefas"));
+  if(!taskDbs.length)secTasks.append(el("div",{class:"hempty"},"Ainda não existe uma base de Tarefas.",!S.ro&&el("button",{class:"btn line",onclick:()=>go(fromTemplate("tarefas").id)},icon("plus"),"Criar base Tarefas")));
+  else if(!meOpt)secTasks.append(el("div",{class:"hempty"},"Escolha acima quem você é na lista de responsáveis para ver as suas tarefas."));
+  else if(!tasks.length)secTasks.append(el("div",{class:"hempty"},"Nenhuma tarefa aberta com você."));
+  else groups.forEach(([label,fn])=>{const g=tasks.filter(fn);if(g.length)secTasks.append(el("h3",null,label+" ("+g.length+")"),...g.map(taskRow));});
+  /* reuniões de hoje */
+  const meets=[];dbs.forEach(d=>props(d).filter(p=>p.type==="date").forEach(dp=>{if(d.tpl==="tarefas"||d.tpl==="metas")return;kids(d.id).forEach(r=>{if(r.props?.[dp.id]===today)meets.push({r,d});});}));
+  const linked=new Set(meets.map(x=>x.r.gcal&&x.r.gcal.id).filter(Boolean));
+  const secMeet=el("section",null,el("h2",null,"Agenda de hoje"));
+  let gev=[],gnote=null;
+  if(me&&auth){
+    if(!gHas([SCOPE_CAL]))gnote=el("button",{class:"btn line",onclick:async()=>{if(await gConnect([SCOPE_CAL])){G.err="";renderMain(true);}}},icon("calendar"),"Conectar Google Agenda");
+    else if(G.err)gnote=el("span",null,G.err==="disabled"?"A Google Calendar API ainda não está ativada no projeto.":"Não foi possível ler a Google Agenda agora.");
+    else{const st=gcalLoad(new Date(now.getFullYear(),now.getMonth(),1),null);if(st.loading)gnote=el("span",null,"Carregando a agenda…");else gev=st.events.filter(e=>e.date===today&&!linked.has(e.id));}
+  }
+  meets.forEach(x=>secMeet.append(el("div",{class:"hrow"},el("time",null,""),el("a",{href:"#p-"+x.r.id},x.r.title||"Sem título"),el("small",null,x.d.title||""))));
+  gev.forEach(e=>secMeet.append(el("div",{class:"hrow"},el("time",null,e.time||"dia"),el("a",{href:e.link||"#hoje",target:e.link?"_blank":null,rel:"noopener"},e.title),el("small",null,"Google Agenda"))));
+  if(!meets.length&&!gev.length)secMeet.append(el("div",{class:"hempty"},gnote&&gnote.tagName==="BUTTON"?"Nenhum item das bases com data de hoje.":!gnote?"Nada na agenda de hoje.":null,gnote));
+  else if(gnote)secMeet.append(el("div",{class:"hempty"},gnote));
+  /* recentes */
+  const recent=[...S.pages.values()].filter(p=>p.ts&&alive(p)).sort((a,b)=>b.ts-a.ts).slice(0,8);
+  const secRec=el("section",null,el("h2",null,"Editado recentemente"),recent.length?recent.map(p=>el("div",{class:"hrow"},monogram(p),el("a",{href:"#p-"+p.id},p.title||"Sem título"),el("small",null,(p.by?String(p.by).split("@")[0]+", ":"")+ago(p.ts)))):el("div",{class:"hempty"},"Nada editado ainda."));
+  const pick=names.length?sel("me-pick",[["","escolher"],...names.map(n=>[n,n])],meOpt?meOpt.name:"",x=>{try{x?localStorage.setItem("aip-me",x):localStorage.removeItem("aip-me");}catch(_){}renderMain(true);}):null;
+  if(pick){pick.className="";pick.setAttribute("aria-label","Quem você é na lista de responsáveis");}
+  return el("div",{class:"home"},el("header",null,el("h1",null,hello+(first?", "+first:"")),
+    el("div",{class:"sub"},now.toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"}),pick&&el("span",null,"· Nas tarefas você é"),pick)),secTasks,secMeet,secRec);
 }
 
 /* ============ conta, backup e início ============ */
