@@ -100,3 +100,16 @@ service cloud.firestore {
   }
 }
 ```
+
+## Arquivos e imagens nas páginas
+
+O app já tem os blocos **Imagem** e **Arquivo** (menu `/`, ou colar um print direto na página). Eles só funcionam depois de ativar o armazenamento, que exige o projeto no plano Blaze (faturamento vinculado):
+
+1. No Firebase, abra **Storage** e clique em **Vamos começar**. Escolha o local `southamerica-east1`.
+2. Na aba **Regras** do Storage, cole o conteúdo do arquivo `storage.rules` e publique.
+
+Limite de 25 MB por arquivo. O link de cada arquivo é longo e impossível de adivinhar, mas quem tiver o link consegue abrir, mesmo que a página esteja restrita.
+
+## Painel
+
+O item **Painel** na barra lateral calcula, a partir das bases que cada pessoa pode ver: metas e progresso (pelos campos Atual e Alvo, ou pelas tarefas vinculadas), distribuição do pipeline, projetos e tarefas por status, tarefas abertas por pessoa e prazos.

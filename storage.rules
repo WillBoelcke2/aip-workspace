@@ -1,0 +1,15 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Só contas Google verificadas do domínio da empresa enviam e leem arquivos, até 25 MB cada.
+    function membro() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.matches('.*@aipathology[.]com[.]br$');
+    }
+    match /files/{caminho=**} {
+      allow read, delete: if membro();
+      allow create, update: if membro() && request.resource.size < 25 * 1024 * 1024;
+    }
+  }
+}
