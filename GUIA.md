@@ -140,3 +140,12 @@ Em **Nova base de dados** há o modelo **CRM comercial**, espelhado na planilha 
 - O funil soma o valor por fase; o Painel mostra o valor em aberto por fase e por trimestre; a página Hoje mostra as próximas tarefas de cada responsável.
 - Fases, opções de ICP, produto e modelo de negócio são editáveis: clique no cabeçalho da coluna ou no próprio campo.
 - Com o CRM vazio, o app oferece trazer as contas da base Pipeline comercial.
+
+## Dia a dia do time
+
+- **Comece aqui**: a página com id `comece` aparece fixa no topo da barra lateral para todo mundo.
+- **Quem é você**: o app liga o login à pessoa pelo nome cadastrado em Pessoas e acessos (o e-mail é a chave). O nome do cadastro não é mais trocado pelo nome da conta Google.
+- **Nova tarefa**: botão na barra lateral, na página Hoje, atalho Alt+T e botão redondo no celular. Já sugere você como responsável.
+- **Virar tarefa**: no menu de qualquer linha de texto (a alça à esquerda). Em uma ata dentro de Reuniões, a tarefa já sai ligada à reunião.
+- **Avisos**: mostra quem citou você em comentários e quem atribuiu um item a você, nos últimos 30 dias.
+- **Enviar sugestão**: grava na base "Sugestões e erros", com quem enviou e em que tela estava.
