@@ -3,12 +3,24 @@
 #   ./tools/deploy-bot.sh        publica e mostra o passo do Admin Console
 #   ./tools/deploy-bot.sh run        roda o robô das atas agora (para testar)
 #   ./tools/deploy-bot.sh run seed   roda o Radar Seed agora
+#   ./tools/deploy-bot.sh run backup roda o backup agora
+#   ./tools/deploy-bot.sh backups    lista os backups guardados
+#   ./tools/deploy-bot.sh restore AAAA-MM-DD [id-da-pagina]   restaura uma página (e o que está dentro dela) ou, sem id, tudo
 set -euo pipefail
 PROJECT=aip-workspace
 REGION=southamerica-east1
 gcloud config set project "$PROJECT" >/dev/null
+if [ "${1:-}" = "backups" ]; then
+  gcloud storage ls -l "gs://$PROJECT.firebasestorage.app/backups/"; exit 0
+fi
+if [ "${1:-}" = "restore" ]; then
+  [ -n "${2:-}" ] || { echo "Uso: ./tools/deploy-bot.sh restore AAAA-MM-DD [id-da-pagina]"; exit 1; }
+  (cd functions && npm install --no-audit --no-fund >/dev/null 2>&1)
+  GOOGLE_CLOUD_PROJECT="$PROJECT" node functions/restore.js "$2" "${3:-}"; exit 0
+fi
 if [ "${1:-}" = "run" ]; then
   FN="atasBot"; SVC="atasbot"; [ "${2:-}" = "seed" ] && FN="seedRadar" && SVC="seedradar"
+  [ "${2:-}" = "backup" ] && FN="backup" && SVC="backup"
   gcloud scheduler jobs run "firebase-schedule-$FN-$REGION" --location="$REGION"
   echo "Disparado ($FN). Aguardando 90s pelo resultado..."; sleep 90
   gcloud logging read "resource.labels.service_name=\"$SVC\" AND jsonPayload.message=\"$FN\"" --limit=1 --freshness=10m --format='json(jsonPayload)'
@@ -20,7 +32,7 @@ NUM=$(gcloud projects describe "$PROJECT" --format='value(projectNumber)')
 SA="$NUM-compute@developer.gserviceaccount.com"
 echo "2/4 Permitindo que a função assine pedidos em nome próprio..."
 gcloud iam service-accounts add-iam-policy-binding "$SA" --member="serviceAccount:$SA" --role=roles/iam.serviceAccountTokenCreator >/dev/null
-for ROLE in roles/datastore.user roles/aiplatform.user roles/cloudbuild.builds.builder roles/logging.logWriter roles/artifactregistry.writer; do
+for ROLE in roles/datastore.user roles/storage.objectAdmin roles/aiplatform.user roles/cloudbuild.builds.builder roles/logging.logWriter roles/artifactregistry.writer; do
   gcloud projects add-iam-policy-binding "$PROJECT" --member="serviceAccount:$SA" --role="$ROLE" --condition=None >/dev/null
 done
 echo "   (aguardando 30s para as permissões valerem)"; sleep 30

@@ -833,7 +833,9 @@ function renderSide(){
   const quick=[
       el("a",{class:"srow"+(S.panel?" on":""),href:"#painel",style:{"text-decoration":"none"}},icon("board"),"Painel"),
       me&&!S.ro&&meetDb()&&el("button",{class:"srow",onclick:e=>ataPop(e.currentTarget)},icon("chat"),"Atas",A.pend.length?el("span",{class:"badge","aria-label":A.pend.length+" para revisar"},String(A.pend.length)):!gHas([SCOPE_MEET])?el("kbd",null,"conectar"):null),
-      (()=>{const c=page("comece");return c&&alive(c)?el("a",{class:"srow"+(S.cur==="comece"?" on":""),href:"#p-comece",style:{"text-decoration":"none"}},icon("flag"),"Comece aqui"):null;})()].filter(Boolean);
+      (()=>{const c=page("comece");return c&&alive(c)?el("a",{class:"srow"+(S.cur==="comece"?" on":""),href:"#p-comece",style:{"text-decoration":"none"}},icon("flag"),"Comece aqui"):null;})(),
+      S.admin&&page("robos")&&alive(page("robos"))&&(()=>{const b=page("robos").bots||{},bad=Object.values(b).some(x=>x&&(x.erro||Object.keys(x.erros||{}).length||Date.now()-x.ts>26*36e5));
+        return el("a",{class:"srow",href:"#p-robos",title:bad?"Algum robô falhou ou não rodou nas últimas 26 horas":"Robôs funcionando"},icon("check"),"Robôs",bad?el("span",{class:"badge","aria-label":"Há robô com falha"},"!"):null);})()].filter(Boolean);
   const wrap=el("nav",{class:"tree-wrap"});
   if(quick.length){wrap.append(el("div",{class:"sec"},"Atalhos"));quick.forEach(x=>wrap.append(x));}
   const favs=[...S.pages.values()].filter(p=>p.fav&&alive(p));
@@ -2118,7 +2120,7 @@ function panelView(){
 }
 
 /* ============ aviso de versão nova ============ */
-const BUILD="1794848894";let newer=false;
+const BUILD="1794859248";let newer=false;
 async function checkBuild(){if(newer||!/^https?:/.test(location.protocol))return;
   try{const r=await fetch("version.txt?"+Date.now(),{cache:"no-store"});if(!r.ok)return;const v=(await r.text()).trim();
     if(v&&v!==BUILD){newer=true;const t=$("#toast");clearTimeout(toastT);t.textContent="";t.append("Há uma versão nova do workspace. ",el("button",{style:{color:"var(--mint)","font-weight":"600","margin-left":"8px"},onclick:()=>location.reload()},"Atualizar"));t.hidden=false;}}catch(_){}}

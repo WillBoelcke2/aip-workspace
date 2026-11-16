@@ -7,6 +7,8 @@ const admin = require("firebase-admin");
 const { GoogleAuth } = require("google-auth-library");
 const { workspace } = require("./core");
 const seed = require("./seed");
+const { report } = require("./status");
+const zlib = require("zlib");
 
 admin.initializeApp();
 const DOMAIN = "aipathology.com.br";
@@ -29,7 +31,7 @@ exports.atasBot = onSchedule({ schedule: "0 6 * * *", timeZone: "America/Sao_Pau
   const pages = new Map(ps.docs.map(d => [d.id, Object.assign({ id: d.id }, d.data())]));
   const members = ms.docs.map(d => Object.assign({ id: d.id }, d.data())).filter(m => m.id.endsWith("@" + DOMAIN));
   const ws = workspace(pages, members), stat = { ts: Date.now(), atas: 0, tarefas: 0, pessoas: 0, erros: {} };
-  if (!ws.meetDb()) { logger.warn("Base Reuniões não encontrada"); return; }
+  if (!ws.meetDb()) { stat.erro = "Base Reuniões não encontrada"; await report(db, "atas", stat); logger.warn("atasBot", stat); return; }
   const sa = (await auth.getCredentials()).client_email;
   const since = new Date(Date.now() - 3 * 864e5).toISOString();
   const q = "mimeType='application/vnd.google-apps.document' and trashed=false and modifiedTime>'" + since + "' and name contains 'Gemini'";
@@ -52,6 +54,7 @@ exports.atasBot = onSchedule({ schedule: "0 6 * * *", timeZone: "America/Sao_Pau
     } catch (e) { stat.erros[m.id.split("@")[0]] = String(e.message || e).slice(0, 160); }
   }
   await db.collection("settings").doc("atasBot").set(stat);
+  await report(db, "atas", stat);
   logger.info("atasBot", stat);
 });
 
@@ -117,5 +120,27 @@ exports.seedRadar = onSchedule({ schedule: "20 6 * * *", timeZone: "America/Sao_
     const batch = db.batch(); docs.forEach(d => batch.set(db.collection("pages").doc(d.id), d)); await batch.commit();
     await stRef.set(Object.assign({}, stat, { seen: [...seen, ...marks].slice(-800) }));
   } catch (e) { stat.erro = String(e.message || e).slice(0, 300); await stRef.set(stat, { merge: true }); }
+  await report(db, "seed", stat);
   logger.info("seedRadar", stat);
+});
+
+// ---------- Backup diário: copia todo o banco do workspace para o Storage e guarda 30 dias ----------
+exports.backup = onSchedule({ schedule: "10 3 * * *", timeZone: "America/Sao_Paulo", region: "southamerica-east1", timeoutSeconds: 540, memory: "1GiB" }, async () => {
+  const db = admin.firestore(), stat = { ts: Date.now(), docs: 0, kb: 0, guardados: 0, erro: "" };
+  try {
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+    const cfg = JSON.parse(process.env.FIREBASE_CONFIG || "{}"), project = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
+    const bucket = admin.storage().bucket(cfg.storageBucket || project + ".firebasestorage.app");
+    const dump = { feito: new Date().toISOString() };
+    for (const c of ["pages", "members", "settings"]) { const sn = await db.collection(c).get(); dump[c] = sn.docs.map(d => Object.assign({ id: d.id }, d.data())); stat.docs += sn.size; }
+    const buf = zlib.gzipSync(Buffer.from(JSON.stringify(dump)));
+    await bucket.file("backups/" + today + ".json.gz").save(buf, { contentType: "application/gzip", resumable: false });
+    stat.kb = Math.round(buf.length / 1024);
+    const [files] = await bucket.getFiles({ prefix: "backups/" });
+    const names = files.map(f => f.name).filter(n => /^backups\/\d{4}-\d\d-\d\d\.json\.gz$/.test(n)).sort();
+    for (const n of names.slice(0, Math.max(0, names.length - 30))) await bucket.file(n).delete();
+    stat.guardados = Math.min(names.length, 30);
+  } catch (e) { stat.erro = String(e.message || e).slice(0, 300); }
+  await report(db, "backup", stat);
+  logger.info("backup", stat);
 });
