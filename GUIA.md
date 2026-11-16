@@ -191,3 +191,7 @@ git clone https://github.com/WillBoelcke2/aip-workspace.git && cd aip-workspace 
 ```
 
 No fim, o script mostra o único passo manual: um superadministrador do Google Workspace autoriza a função a ler os arquivos criados pelo Meet (e nada mais) no Admin Console. Para testar na hora: `./tools/deploy-bot.sh run`.
+
+### Radar Seed (para quem administra)
+
+A mesma publicação inclui o Radar Seed: todo dia às 6h20 ele lê os e-mails do dono do workspace (só essa caixa), usa o Gemini do projeto para separar o que é de investidor e atualiza o CRM de fundos: nota datada, última conversa, próximo follow-up e status quando o e-mail comprova. O resumo do dia fica na página **Radar Seed**, restrita a administradores. Contatos ambíguos não entram no CRM; aparecem em "Para você decidir". Para testar: `./tools/deploy-bot.sh run seed`.

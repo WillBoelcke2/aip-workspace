@@ -6,15 +6,16 @@ const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const { GoogleAuth } = require("google-auth-library");
 const { workspace } = require("./core");
+const seed = require("./seed");
 
 admin.initializeApp();
 const DOMAIN = "aipathology.com.br";
 const SCOPE = "https://www.googleapis.com/auth/drive.meet.readonly";
 const auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
 
-async function userToken(sa, email) {
+async function userToken(sa, email, scope) {
   const now = Math.floor(Date.now() / 1000);
-  const payload = JSON.stringify({ iss: sa, sub: email, scope: SCOPE, aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 1800 });
+  const payload = JSON.stringify({ iss: sa, sub: email, scope: scope || SCOPE, aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 1800 });
   const client = await auth.getClient();
   const sig = await client.request({ url: "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/" + encodeURIComponent(sa) + ":signJwt", method: "POST", data: { payload } });
   const r = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: sig.data.signedJwt }) });
@@ -52,4 +53,69 @@ exports.atasBot = onSchedule({ schedule: "0 6 * * *", timeZone: "America/Sao_Pau
   }
   await db.collection("settings").doc("atasBot").set(stat);
   logger.info("atasBot", stat);
+});
+
+// ---------- Radar Seed: lê os e-mails do dono do workspace e atualiza o CRM de fundos ----------
+const GMAIL = "https://www.googleapis.com/auth/gmail.readonly";
+const MODELS = (process.env.SEED_MODELS || "gemini-3.6-flash,gemini-3.5-flash,gemini-3-flash-preview,gemini-2.5-flash").split(",");
+const b64 = s => Buffer.from(String(s || "").replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+function bodyText(p) {
+  if (!p) return "";
+  if (p.mimeType === "text/plain" && p.body && p.body.data) return b64(p.body.data);
+  for (const c of p.parts || []) { const t = bodyText(c); if (t) return t; }
+  if (p.mimeType === "text/html" && p.body && p.body.data) return b64(p.body.data).replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ");
+  return "";
+}
+const clean = t => String(t || "").split(/\r?\n/).filter(l => !/^\s*>/.test(l)).join("\n").replace(/\n?On .{0,120}wrote:[\s\S]*$/i, "").replace(/\n?Em .{0,120}escreveu:[\s\S]*$/i, "").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+async function gemini(text) {
+  const client = await auth.getClient(), project = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT; let last = "";
+  for (const m of MODELS) {
+    try {
+      const r = await client.request({ url: "https://aiplatform.googleapis.com/v1/projects/" + project + "/locations/global/publishers/google/models/" + m.trim() + ":generateContent", method: "POST",
+        data: { contents: [{ role: "user", parts: [{ text }] }], generationConfig: { temperature: 0, responseMimeType: "application/json", responseSchema: seed.SCHEMA } } });
+      const out = (((r.data.candidates || [])[0] || {}).content || {}).parts || [];
+      return { model: m.trim(), items: JSON.parse(out.map(p => p.text || "").join("") || "[]") };
+    } catch (e) { last = String((e.response && e.response.data && e.response.data.error && e.response.data.error.message) || e.message || e).slice(0, 200); }
+  }
+  throw new Error("Gemini: " + last);
+}
+
+exports.seedRadar = onSchedule({ schedule: "20 6 * * *", timeZone: "America/Sao_Paulo", region: "southamerica-east1", timeoutSeconds: 540, memory: "512MiB" }, async () => {
+  const db = admin.firestore(), stat = { ts: Date.now(), conversas: 0, atualizados: 0, novos: 0, modelo: "", erro: "" };
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  const stRef = db.collection("settings").doc("seedBot");
+  try {
+    const [ps, ow, prev, ms] = await Promise.all([db.collection("pages").get(), db.collection("settings").doc("owner").get(), stRef.get(), db.collection("members").get()]);
+    const pages = new Map(ps.docs.map(d => [d.id, Object.assign({ id: d.id }, d.data())]));
+    const owner = ow.exists && ow.data().email; if (!owner) throw new Error("dono do workspace não definido");
+    if (!seed.fundDb(pages)) throw new Error("base de fundos não encontrada");
+    const ownerName = ((ms.docs.find(d => d.id === owner) || { data: () => ({}) }).data().name) || "";
+    const seen = new Set((prev.exists && prev.data().seen) || []);
+    const sa = (await auth.getCredentials()).client_email, H = { Authorization: "Bearer " + await userToken(sa, owner, GMAIL) };
+    const days = new Date(today + "T12:00:00Z").getUTCDay() === 1 ? 3 : 2;
+    const G = "https://gmail.googleapis.com/gmail/v1/users/me/";
+    const lr = await fetch(G + "threads?maxResults=60&q=" + encodeURIComponent("newer_than:" + days + "d -category:promotions -category:social -category:forums"), { headers: H });
+    const lj = await lr.json(); if (!lr.ok) throw new Error((lj.error && lj.error.message) || "gmail " + lr.status);
+    const threads = [], marks = [];
+    for (const t of lj.threads || []) {
+      const tr = await fetch(G + "threads/" + t.id + "?format=full", { headers: H }); if (!tr.ok) continue;
+      const tj = await tr.json(), msgs = tj.messages || [], lastM = msgs[msgs.length - 1]; if (!lastM) continue;
+      const key = t.id + ":" + lastM.id; if (seen.has(key)) continue; marks.push(key);
+      const hd = (m, n) => ((m.payload && m.payload.headers) || []).find(h => h.name.toLowerCase() === n) || { value: "" };
+      const people = msgs.map(m => hd(m, "from").value + " " + hd(m, "to").value + " " + hd(m, "cc").value).join(" ").toLowerCase();
+      const ext = (people.match(/[\w.+-]+@[\w.-]+/g) || []).filter(e => !e.endsWith("@" + DOMAIN) && !/no-?reply|notification|mailer-daemon|calendar-notification|@google\.com|@docs\.google\.com/.test(e));
+      if (!ext.length) continue;
+      threads.push({ id: t.id, subject: hd(msgs[0], "subject").value.slice(0, 140), msgs: msgs.slice(-2).map(m => ({ date: new Date(+m.internalDate || Date.now()).toISOString().slice(0, 10), from: hd(m, "from").value.slice(0, 120), to: hd(m, "to").value.slice(0, 160), text: clean(bodyText(m.payload) || m.snippet).slice(0, 1400) })) });
+      if (threads.length >= 40) break;
+    }
+    stat.conversas = threads.length;
+    let items = [];
+    for (let i = 0; i < threads.length; i += 20) { const g = await gemini(seed.prompt(threads.slice(i, i + 20), seed.fundList(pages), today, ownerName)); stat.modelo = g.model; items = items.concat(Array.isArray(g.items) ? g.items : []); }
+    const res = seed.apply(pages, items, today);
+    stat.atualizados = res.rep.up.length; stat.novos = res.rep.novo.length;
+    const docs = res.docs.concat([seed.reportPage(pages, res, today, threads.length + (threads.length === 1 ? " conversa externa lida." : " conversas externas lidas."))]);
+    const batch = db.batch(); docs.forEach(d => batch.set(db.collection("pages").doc(d.id), d)); await batch.commit();
+    await stRef.set(Object.assign({}, stat, { seen: [...seen, ...marks].slice(-800) }));
+  } catch (e) { stat.erro = String(e.message || e).slice(0, 300); await stRef.set(stat, { merge: true }); }
+  logger.info("seedRadar", stat);
 });
