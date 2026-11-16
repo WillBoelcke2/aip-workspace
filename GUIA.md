@@ -201,3 +201,7 @@ A mesma publicação inclui o Radar Seed: todo dia às 6h20 ele lê os e-mails d
 - **Robôs** (em Atalhos, só administradores): mostra a última execução de cada robô — atas, Radar Seed e backup — com o que foi feito e os erros. Um "!" aparece ao lado quando algum falhou ou ficou mais de 26 horas sem rodar.
 - **Backup:** todo dia às 3h10 o banco inteiro do workspace é copiado para o Storage do projeto, e as últimas 30 cópias ficam guardadas. Ninguém do time acessa esses arquivos pelo app.
 - No Cloud Shell: `./tools/deploy-bot.sh backups` lista as cópias; `./tools/deploy-bot.sh restore AAAA-MM-DD id-da-pagina` devolve uma página (e o que está dentro dela) ao estado daquele dia; sem o id, restaura todas. A restauração pede confirmação e não apaga o que foi criado depois.
+
+## Painel
+
+O Painel tem uma aba por área: **Resumo**, **Execução**, **Metas**, **Comercial** e **Captação** (as duas últimas só aparecem para quem tem acesso às bases). O Resumo abre com o que precisa de atenção e um cartão por área; clicar num cartão leva à aba dela. Passe o mouse sobre qualquer barra para ver o número exato. Tudo é calculado na hora a partir das bases.
