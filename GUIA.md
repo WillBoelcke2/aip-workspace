@@ -150,3 +150,12 @@ Em **Nova base de dados** há o modelo **CRM comercial**, espelhado na planilha 
 - **Avisos**: mostra quem citou você em comentários e quem atribuiu um item a você, nos últimos 30 dias.
 - **Enviar sugestão**: grava na base "Sugestões e erros", com quem enviou e em que tela estava.
 - **Equipes**: a base "Equipes" tem uma linha por equipe, com Membros e Líder. Em Nova tarefa dá para escolher uma equipe em vez de uma pessoa; a tarefa aparece em "Das suas equipes" na página Hoje de todos os membros, que também recebem um aviso. A página de cada equipe lista as tarefas dela.
+
+## Bases mais completas
+
+- **Texto longo**: propriedades de texto com mais de uma linha (ou marcadas como "texto longo" no menu da propriedade) mostram o conteúdo inteiro no item, com links e e-mails clicáveis. Clique no texto para editar. Na tabela aparece a primeira linha; o clique abre o texto completo.
+- **Tabela agrupada**: no menu da visualização em tabela, "Agrupar por" separa as linhas por uma propriedade de seleção, status ou pessoa. Cada grupo pode ser recolhido.
+- **Descrição da base**: menu "…" da base, "Adicionar descrição". O texto fica logo abaixo do título.
+- **Link em propriedade de URL**: dentro do item, o botão "Abrir" ao lado do endereço.
+- **Campos do cartão**: uma visualização em quadro pode fixar quais propriedades aparecem no cartão (campo `card` da visualização, definido na importação).
+- **Agenda de hoje**: uma base pode indicar quais datas contam como agenda (campo `agenda`); sem isso, qualquer data igual a hoje aparece na página Hoje.
