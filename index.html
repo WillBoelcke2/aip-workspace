@@ -1879,7 +1879,7 @@ function ataParse(name,md){
   const steps=bl("next").map(t=>{const m=/^\[([^\]]+)\]\s*(.*)$/.exec(t);let who=m?m[1].trim():"",rest=m?m[2]:t;const i=rest.indexOf(": ");return{who,title:(i>0&&i<90?rest.slice(0,i):rest).trim(),desc:i>0&&i<90?rest.slice(i+2).trim():""};}).filter(x=>x.title);
   return{title,date,guests,summary,decisions:bl("dec"),steps};
 }
-function ataGloss(d){return Array.isArray(d&&d.gloss)?d.gloss.filter(g=>g&&g[0]&&g[1]):[];}
+function ataGloss(d){return(Array.isArray(d&&d.gloss)?d.gloss:[]).map(l=>String(l).split("=").map(x=>x.trim())).filter(g=>g.length===2&&g[0]&&g[1]);} // guardado como texto "errado = certo": o Firestore não aceita lista dentro de lista
 function ataFix(t,gl){gl.forEach(([a,b])=>{try{t=t.replace(new RegExp("(^|[^\\wÀ-ÿ])"+a.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"(?![\\wÀ-ÿ])","g"),(m,pre)=>pre+b);}catch(_){}});return t;}
 function ataTeam(title,guests){
   const t=teamDb();if(!t)return null;const toks=norm(title).split(/[^a-z0-9&]+/).filter(Boolean);
@@ -1956,7 +1956,7 @@ function ataPop(anchor){
       box.append(el("button",{class:"btn line",disabled:A.busy,onclick:async()=>{const pr=ataScan();draw();await pr;draw();}},"Verificar agora"));
     }
     if(!S.ro){const ta=el("textarea",{class:"inp",id:"ata-gl",rows:3,placeholder:"errado = certo (um por linha)","aria-label":"Glossário de correções"});ta.value=ataGloss(md).map(g=>g[0]+" = "+g[1]).join("\n");
-      ta.addEventListener("change",()=>{md.gloss=ta.value.split("\n").map(l=>l.split("=").map(x=>x.trim())).filter(g=>g.length===2&&g[0]&&g[1]).slice(0,80);save(md);});
+      ta.addEventListener("change",()=>{md.gloss=ta.value.split("\n").map(l=>l.split("=").map(x=>x.trim())).filter(g=>g.length===2&&g[0]&&g[1]).map(g=>g[0]+" = "+g[1]).slice(0,80);save(md);});
       box.append(el("div",{class:"field"},el("label",{for:"ata-gl"},"Correções de nomes"),ta));}
     box.append(el("small",{class:"ahint"},"Sem prazo na ata: 1 semana. Sem dono: líder da equipe da reunião."));};
   draw();pop(anchor,box,{focus:"x-none"});
@@ -2110,7 +2110,7 @@ function panelView(){
 }
 
 /* ============ aviso de versão nova ============ */
-const BUILD="1794848321";let newer=false;
+const BUILD="1794848546";let newer=false;
 async function checkBuild(){if(newer||!/^https?:/.test(location.protocol))return;
   try{const r=await fetch("version.txt?"+Date.now(),{cache:"no-store"});if(!r.ok)return;const v=(await r.text()).trim();
     if(v&&v!==BUILD){newer=true;const t=$("#toast");clearTimeout(toastT);t.textContent="";t.append("Há uma versão nova do workspace. ",el("button",{style:{color:"var(--mint)","font-weight":"600","margin-left":"8px"},onclick:()=>location.reload()},"Atualizar"));t.hidden=false;}}catch(_){}}
