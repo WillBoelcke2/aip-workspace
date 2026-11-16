@@ -581,6 +581,10 @@ td:hover .reladd,.pval .reladd,.reladd:focus-visible{opacity:1}
 
 .ata{min-width:300px;max-width:360px;display:grid;gap:10px}.atxt{margin:0;font-size:13.5px;color:var(--muted);line-height:1.45}
 .arow{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center}.arow span{display:grid;min-width:0}.arow b{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.arow small,.ahint{font-size:12px;color:var(--faint)}
+
+.ws-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.ws-new{display:inline-flex;align-items:center;gap:4px;padding:5px 10px 5px 7px;border-radius:999px;background:var(--text);color:var(--bg);font-size:13px;font-weight:600;flex:none}.ws-new:hover{opacity:.88}.ws-new svg{width:14px;height:14px}
+.tree-wrap>.srow{width:100%}
 </style>
 </head>
 <body>
@@ -816,18 +820,22 @@ function monogram(p){const c=el("span",{class:"chip-ic c-"+(p.color||"gray")});i
 function renderSide(){
   const s=$("#side");const keep=$(".tree-wrap",s)?.scrollTop||0;s.textContent="";
   s.append(
-    el("div",{class:"ws"},logo(),el("div",{class:"ws-sub"},"Workspace interno")),
+    el("div",{class:"ws"},el("div",{class:"ws-top"},logo(),
+      el("button",{class:"ws-new","data-w":1,title:"Criar tarefa, página ou base","aria-label":"Novo",onclick:e=>pop(e.currentTarget,[el("h6",null,"Novo"),
+        taskDb()&&mi("Tarefa (Alt T)","check",()=>quickTask($(".ws-new"))),
+        mi("Página","page",()=>go(newPage(null,"page").id)),el("hr"),el("h6",null,"Base de dados"),
+        mi("Em branco","db",()=>go(newPage(null,"db","").id)),mi("Tarefas","list",()=>go(fromTemplate("tarefas").id)),mi("Metas","board",()=>go(fromTemplate("metas").id)),mi("CRM comercial","list",()=>go(fromTemplate("crm").id)),!teamDb()&&mi("Equipes","db",()=>go(ensureTeams().id))])},icon("plus"),"Novo")),
+      el("div",{class:"ws-sub"},"Workspace interno")),
     el("div",{class:"side-actions"},
       el("a",{class:"srow"+(S.home?" on":""),href:"#hoje",style:{"text-decoration":"none"},onclick:()=>{if(S.home)$("#app").classList.remove("nav");}},icon("calendar"),"Hoje"),
-      el("a",{class:"srow"+(S.panel?" on":""),href:"#painel",style:{"text-decoration":"none"}},icon("board"),"Painel"),
-      (()=>{const c=page("comece");return c&&alive(c)?el("a",{class:"srow"+(S.cur==="comece"?" on":""),href:"#p-comece",style:{"text-decoration":"none"}},icon("flag"),"Comece aqui"):null;})(),
       me&&(()=>{const n=notices().filter(x=>x.ts>lastSeen()).length;return el("button",{class:"srow",onclick:e=>noticePop(e.currentTarget)},icon("bell"),"Avisos",n?el("span",{class:"badge","aria-label":n+" novos"},n>9?"9+":String(n)):null);})(),
+      el("button",{class:"srow",onclick:openSearch},icon("search"),"Buscar",el("kbd",null,"Ctrl K"))));
+  const quick=[
+      el("a",{class:"srow"+(S.panel?" on":""),href:"#painel",style:{"text-decoration":"none"}},icon("board"),"Painel"),
       me&&!S.ro&&meetDb()&&el("button",{class:"srow",onclick:e=>ataPop(e.currentTarget)},icon("chat"),"Atas",A.pend.length?el("span",{class:"badge","aria-label":A.pend.length+" para revisar"},String(A.pend.length)):!gHas([SCOPE_MEET])?el("kbd",null,"conectar"):null),
-      el("button",{class:"srow",onclick:openSearch},icon("search"),"Buscar",el("kbd",null,"Ctrl K")),
-      taskDb()&&el("button",{class:"srow","data-w":1,onclick:e=>quickTask(e.currentTarget)},icon("check"),"Nova tarefa",el("kbd",null,"Alt T")),
-      el("button",{class:"srow","data-w":1,onclick:()=>go(newPage(null,"page").id)},icon("plus"),"Nova página"),
-      el("button",{class:"srow","data-w":1,onclick:e=>pop(e.currentTarget,[el("h6",null,"Nova base de dados"),mi("Em branco","db",()=>go(newPage(null,"db","").id)),mi("Tarefas","list",()=>go(fromTemplate("tarefas").id)),mi("Metas","board",()=>go(fromTemplate("metas").id)),mi("CRM comercial","list",()=>go(fromTemplate("crm").id)),!teamDb()&&mi("Equipes","db",()=>go(ensureTeams().id))])},icon("db"),"Nova base de dados")));
+      (()=>{const c=page("comece");return c&&alive(c)?el("a",{class:"srow"+(S.cur==="comece"?" on":""),href:"#p-comece",style:{"text-decoration":"none"}},icon("flag"),"Comece aqui"):null;})()].filter(Boolean);
   const wrap=el("nav",{class:"tree-wrap"});
+  if(quick.length){wrap.append(el("div",{class:"sec"},"Atalhos"));quick.forEach(x=>wrap.append(x));}
   const favs=[...S.pages.values()].filter(p=>p.fav&&alive(p));
   if(favs.length){wrap.append(el("div",{class:"sec"},"Favoritos"));favs.forEach(p=>wrap.append(node(p,0,true)));}
   wrap.append(el("div",{class:"sec"},"Páginas"));
@@ -2110,7 +2118,7 @@ function panelView(){
 }
 
 /* ============ aviso de versão nova ============ */
-const BUILD="1794848546";let newer=false;
+const BUILD="1794848894";let newer=false;
 async function checkBuild(){if(newer||!/^https?:/.test(location.protocol))return;
   try{const r=await fetch("version.txt?"+Date.now(),{cache:"no-store"});if(!r.ok)return;const v=(await r.text()).trim();
     if(v&&v!==BUILD){newer=true;const t=$("#toast");clearTimeout(toastT);t.textContent="";t.append("Há uma versão nova do workspace. ",el("button",{style:{color:"var(--mint)","font-weight":"600","margin-left":"8px"},onclick:()=>location.reload()},"Atualizar"));t.hidden=false;}}catch(_){}}
