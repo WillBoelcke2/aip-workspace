@@ -168,3 +168,14 @@ Toda base aceita sete formatos, no `+` ao lado das abas: Tabela, Quadro, Lista, 
 - **Cronograma:** barras entre a data de início e a de fim (escolha as duas clicando na aba da visualização). A linha verde marca hoje.
 - **Galeria:** um cartão por item; se a página do item tiver imagem, ela vira a capa.
 - **Gráfico:** barras com a quantidade de itens (ou a soma de um campo numérico) por Status, Seleção ou Pessoa.
+
+## Atas automáticas (bot de reuniões)
+
+No menu lateral, **Atas** conecta o workspace às anotações do Gemini das suas reuniões no Meet. Depois de conectar, cada ata nova vira uma linha em Reuniões (resumo, decisões e link da ata) e uma tarefa para cada próximo passo.
+
+- Sem prazo na ata, a tarefa vence 1 semana depois da reunião. "Hoje", "amanhã" e datas escritas são respeitados.
+- Sem dono (ou dono de fora do time), a tarefa vai para o líder da equipe da reunião; se a reunião não for de uma equipe, fica com quem importou.
+- A mesma ata entra uma vez só, mesmo que vários participantes estejam conectados.
+- Reuniões com menos de 3 convidados, com título reservado (1:1, desempenho, feedback etc.) ou com mais de 3 dias ficam na lista para você decidir: Importar ou Ignorar.
+- Em "Correções de nomes" ficam os termos que o Gemini erra, no formato `errado = certo`.
+- O Google pede a conexão de novo a cada sessão do navegador (cerca de 1 hora); com a conexão ativa, o workspace procura atas novas sozinho.
