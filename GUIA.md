@@ -159,3 +159,12 @@ Em **Nova base de dados** há o modelo **CRM comercial**, espelhado na planilha 
 - **Link em propriedade de URL**: dentro do item, o botão "Abrir" ao lado do endereço.
 - **Campos do cartão**: uma visualização em quadro pode fixar quais propriedades aparecem no cartão (campo `card` da visualização, definido na importação).
 - **Agenda de hoje**: uma base pode indicar quais datas contam como agenda (campo `agenda`); sem isso, qualquer data igual a hoje aparece na página Hoje.
+
+## Mais visualizações
+
+Toda base aceita sete formatos, no `+` ao lado das abas: Tabela, Quadro, Lista, Calendário, Cronograma, Galeria e Gráfico.
+
+- **Calendário por semana:** no cabeçalho do calendário, troque entre Mês e Semana. A semana mostra os itens do dia no topo e, com a Google Agenda ligada, os compromissos na grade de horários.
+- **Cronograma:** barras entre a data de início e a de fim (escolha as duas clicando na aba da visualização). A linha verde marca hoje.
+- **Galeria:** um cartão por item; se a página do item tiver imagem, ela vira a capa.
+- **Gráfico:** barras com a quantidade de itens (ou a soma de um campo numérico) por Status, Seleção ou Pessoa.
