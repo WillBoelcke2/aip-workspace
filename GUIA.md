@@ -179,3 +179,15 @@ No menu lateral, **Atas** conecta o workspace às anotações do Gemini das suas
 - Reuniões com menos de 3 convidados, com título reservado (1:1, desempenho, feedback etc.) ou com mais de 3 dias ficam na lista para você decidir: Importar ou Ignorar.
 - Em "Correções de nomes" ficam os termos que o Gemini erra, no formato `errado = certo`.
 - O Google pede a conexão de novo a cada sessão do navegador (cerca de 1 hora); com a conexão ativa, o workspace procura atas novas sozinho.
+
+### Robô das 6h (para quem administra)
+
+A pasta `functions/` tem uma função agendada que roda todo dia às 6h (Brasília) e importa as atas de todas as pessoas do time, sem clique de ninguém. As mesmas regras valem: reuniões com menos de 3 convidados ou com título reservado não entram sozinhas.
+
+Para publicar, abra o [Google Cloud Shell](https://shell.cloud.google.com) e rode:
+
+```
+git clone https://github.com/WillBoelcke2/aip-workspace.git && cd aip-workspace && ./tools/deploy-bot.sh
+```
+
+No fim, o script mostra o único passo manual: um superadministrador do Google Workspace autoriza a função a ler os arquivos criados pelo Meet (e nada mais) no Admin Console. Para testar na hora: `./tools/deploy-bot.sh run`.
