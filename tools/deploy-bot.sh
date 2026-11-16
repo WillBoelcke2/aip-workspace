@@ -18,7 +18,10 @@ NUM=$(gcloud projects describe "$PROJECT" --format='value(projectNumber)')
 SA="$NUM-compute@developer.gserviceaccount.com"
 echo "2/4 Permitindo que a função assine pedidos em nome próprio..."
 gcloud iam service-accounts add-iam-policy-binding "$SA" --member="serviceAccount:$SA" --role=roles/iam.serviceAccountTokenCreator >/dev/null
-gcloud projects add-iam-policy-binding "$PROJECT" --member="serviceAccount:$SA" --role=roles/datastore.user --condition=None >/dev/null
+for ROLE in roles/datastore.user roles/cloudbuild.builds.builder roles/logging.logWriter roles/artifactregistry.writer; do
+  gcloud projects add-iam-policy-binding "$PROJECT" --member="serviceAccount:$SA" --role="$ROLE" --condition=None >/dev/null
+done
+echo "   (aguardando 30s para as permissões valerem)"; sleep 30
 echo "3/4 Publicando a função..."
 (cd functions && npm install --no-audit --no-fund)
 firebase deploy --only functions --project "$PROJECT" --force
