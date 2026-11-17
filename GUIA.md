@@ -220,3 +220,7 @@ As bases também ganharam as visualizações **Feed** (itens mais recentes prime
 ## Agenda sem conectar
 
 O robô do servidor copia a Google Agenda de cada pessoa para o workspace de hora em hora, das 6h às 21h (os 7 dias anteriores e os 45 seguintes). Com isso a "Agenda de hoje" e os calendários mostram os compromissos sem pedir conexão. São guardados só horário, título e link do evento; eventos marcados como privados aparecem como "Ocupado" e os recusados não entram. Cada pessoa vê a própria agenda; administradores do workspace conseguem ler as cópias de todos.
+
+## Foco por equipe
+
+O Painel e a base de Tarefas abrem mostrando as suas equipes: o que é das equipes em que você está e o que está atribuído a você, mesmo sem equipe. No seletor "Mostrar" (no Painel) ou ao lado de "Ordenar" (em Tarefas) dá para trocar para **Toda a empresa** ou para uma equipe específica; a escolha fica guardada no seu navegador. É um filtro de quem olha, não uma restrição: ninguém perde acesso a nada. Quem está em todas as equipes abre em "Toda a empresa". Uma tarefa criada com o foco ligado já nasce na sua equipe (quando você tem só uma) e com você como responsável.

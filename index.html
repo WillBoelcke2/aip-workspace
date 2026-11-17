@@ -650,6 +650,9 @@ button.h2link{font:inherit;font-size:13px}
 .ftitle{font-weight:600;font-size:16px;text-align:left}.ftitle:hover{text-decoration:underline}.fcard small{color:var(--faint);font-size:12.5px;white-space:nowrap}.fcard p{margin:0;color:var(--text-2);font-size:14px;line-height:1.5}.fcard img{max-width:100%;max-height:260px;border-radius:8px;object-fit:cover}
 .dform{display:grid;gap:14px;max-width:560px;padding:4px 0}.dform .field.inline{display:flex;align-items:center;gap:10px;flex-direction:row-reverse;justify-content:flex-end}.dform textarea{resize:vertical}
 .dform-f{display:flex;align-items:center;gap:14px}.dform-f small{color:var(--faint);font-size:12.5px}
+
+.pscope{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}.pscope label{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}.pscope select{width:auto;max-width:260px}.pscope small{color:var(--muted);font-size:13px}
+.tools select.scope{width:auto;max-width:210px;padding:5px 26px 5px 10px;font-size:13.5px}
 </style>
 </head>
 <body>
@@ -1431,6 +1434,7 @@ function showVal(row,pr){
 }
 function visible(d,v){
   const q=norm(S.q[d.id]||"");let rows=rowsOf(d);
+  if(d.tpl==="tarefas"&&!S.ev){const sc=getScope("tasks"),tms=scopeTeams(sc);if(tms)rows=rows.filter(r=>inScope(d,r,tms,sc));}
   (v.filters||[]).forEach(f=>{const pr=props(d).find(p=>p.id===f.prop);if(!pr||f.value===""||f.value==null)return;
     rows=rows.filter(r=>{const x=val(r,pr);
       if(pr.type==="multi"||pr.type==="relation")return(Array.isArray(x)?x:[]).includes(f.value);
@@ -1462,6 +1466,9 @@ function importDeals(d,src){
 function addRow(d,preset){
   const v=curView(d),pp={};
   (v.filters||[]).forEach(f=>{const pr=props(d).find(p=>p.id===f.prop);if(pr&&OPT(pr.type)&&f.value)pp[pr.id]=pr.type==="multi"?[f.value]:f.value;});
+  if(d.tpl==="tarefas"&&!S.ev){const sc=getScope("tasks"),tms=scopeTeams(sc),tr=teamRel(d),per=props(d).find(p=>p.type==="person");
+    if(tms&&tr&&tms.length===1)pp[tr.id]=[tms[0]];
+    if(sc==="mine"&&per&&!pp[per.id]){const mine=whoAmI(per.options||[]);if(mine)pp[per.id]=mine.id;}}
   Object.assign(pp,preset||{});
   const stg=keyProp(d,"stage");if(stg&&!pp[stg.id]&&stg.options&&stg.options[0])pp[stg.id]=stg.options[0].id;
   const r={id:rid(),kind:"page",title:"",parent:d.id,order:(rowsOf(d).at(-1)?.order||0)+1,props:pp,blocks:[]};
@@ -1550,6 +1557,7 @@ function drawTools(d,keepQ){
   t.append(el("div",{class:"tools"},
     el("button",{class:"btn"+(f?" act":""),id:"btn-f",onclick:e=>filterPop(e.currentTarget,d)},icon("filter"),f?`Filtro (${f})`:"Filtro"),
     el("button",{class:"btn"+(v.sortBy?" act":""),id:"btn-s",onclick:e=>sortPop(e.currentTarget,d)},icon("sort"),"Ordenar"),
+    d.tpl==="tarefas"?(()=>{const x=scopeSel("db-scope","tasks",()=>drawBody(d));if(x){x.classList.add("scope");x.setAttribute("aria-label","Mostrar tarefas de");}return x;})():null,
     el("label",{class:"q"},icon("search"),q),
     el("button",{class:"btn pri","data-w":1,onclick:()=>{const r=addRow(d);drawBody(d);if(curView(d).type==="table"){const i=$(`[data-row="${r.id}"] .ttl`);if(i)i.focus();}else openPeek(r.id);}},icon("plus"),"Novo")));
 }
@@ -2009,6 +2017,18 @@ const teamDb=()=>{const d=page("equipes");return d&&alive(d)&&d.kind==="db"?d:[.
 const teamRel=d=>{const t=teamDb();return t&&props(d).find(p=>p.type==="relation"&&p.db===t.id);};
 function myTeams(){const t=teamDb();if(!t||!me)return[];const mp=props(t).find(p=>p.key==="members");if(!mp)return[];const mine=whoAmI(mp.options||[]);if(!mine)return[];
   return kids(t.id).filter(r=>Array.isArray(r.props?.[mp.id])&&r.props[mp.id].includes(mine.id));}
+/* foco por equipe: "mine" (minhas equipes), "all" (toda a empresa) ou o id de uma equipe. É só um filtro de quem olha, não uma restrição de acesso. */
+const scopeTeams=sc=>{const t=teamDb();if(!t||sc==="all")return null;if(sc==="mine")return myTeams().map(x=>x.id);return page(sc)&&alive(page(sc))?[sc]:null;};
+const defScope=()=>{const t=teamDb();if(!t||!me)return"all";const m=myTeams().length;return m&&m<kids(t.id).length?"mine":"all";};
+const getScope=k=>{try{const v=localStorage.getItem("aip-scope-"+k);if(v&&(v==="all"||v==="mine"||(page(v)&&alive(page(v)))))return v;}catch(_){}return defScope();};
+const setScope=(k,v)=>{try{localStorage.setItem("aip-scope-"+k,v);}catch(_){}};
+function inScope(d,r,teams,sc){
+  if(!teams)return true;const tr=teamRel(d),ids=tr&&Array.isArray(r.props?.[tr.id])?r.props[tr.id]:[];
+  if(ids.some(id=>teams.includes(id)))return true;
+  if(sc==="mine"){const pp=props(d).find(p=>p.type==="person"),mine=pp&&whoAmI(pp.options||[]);return!!(mine&&r.props?.[pp.id]===mine.id);}
+  return false;}
+function scopeSel(id,k,after){const t=teamDb();if(!t||!me)return null;
+  return sel(id,[["all","Toda a empresa"],["mine","Minhas equipes"],...kids(t.id).map(x=>[x.id,"Equipe: "+(x.title||"Sem nome")])],getScope(k),x=>{setScope(k,x);after();});}
 function ensureTeams(){
   let t=teamDb();
   if(!t){const mb=rid(),ld=rid();
@@ -2275,7 +2295,8 @@ function panelView(){
   const P=(d,fn)=>props(d).find(fn),stOf=d=>P(d,p=>p.type==="status"),opt=(pr,r)=>pr&&(pr.options||[]).find(o=>o.id===r.props?.[pr.id]);
   const isDone=(d,r)=>{const o=opt(stOf(d),r);return!!o&&DONE.test(norm(o.name));},nf=n=>Number(n).toLocaleString("pt-BR",{maximumFractionDigits:1});
   const metasDbs=dbs.filter(d=>d.tpl==="metas"),taskDbs=dbs.filter(d=>d.tpl==="tarefas");
-  const metas=metasDbs.flatMap(d=>kids(d.id).map(r=>({r,d}))),tasks=taskDbs.flatMap(d=>kids(d.id).map(r=>({r,d})));
+  const psc=getScope("panel"),ptm=scopeTeams(psc);
+  const metas=metasDbs.flatMap(d=>kids(d.id).filter(r=>!ptm||!teamRel(d)||inScope(d,r,ptm,psc)).map(r=>({r,d}))),tasks=taskDbs.flatMap(d=>kids(d.id).filter(r=>inScope(d,r,ptm,psc)).map(r=>({r,d})));
   const open=tasks.filter(t=>!isDone(t.d,t.r)),dueOf=(d,r)=>{const dp=P(d,p=>p.type==="date");return dp&&r.props?.[dp.id]||"";};
   const late=open.filter(t=>{const x=dueOf(t.d,t.r);return x&&x<today;});
   const progress=({r,d})=>{
@@ -2389,7 +2410,9 @@ function panelView(){
       tier?card("Por tier",hbars(byOpt(tier)),{span:6}):null,onda?card("Por onda",hbars(byOpt(onda)),{span:6}):null,
       card("Follow-ups vencidos",fLate.length?el("div",null,[...fLate].sort((x,y)=>String(y.props[ffu.id]).localeCompare(String(x.props[ffu.id]))).slice(0,12).map(r=>el("div",{class:"hrow"},el("a",{href:"#p-"+r.id},r.title||"Sem nome"),el("small",null,(opt(fst,r)||{}).name||""),el("small",{class:"late"},fmtDate(r.props[ffu.id]))))):empty("Nenhum follow-up vencido."),{span:12}));
   }
-  return el("div",{class:"home dash"},el("header",null,el("h1",null,"Painel"),el("div",{class:"sub"},"Calculado agora, a partir das bases que você pode ver.")),
+  const pscSel=scopeSel("pn-scope","panel",()=>renderMain()),pscNote=!ptm?"":psc==="mine"?(myTeams().length?"Metas e tarefas de "+myTeams().map(x=>x.title).join(", ")+" e as atribuídas a você.":"Você ainda não está em nenhuma equipe: aparecem só as tarefas atribuídas a você."):"Metas e tarefas da equipe "+(page(psc).title||"")+".";
+  return el("div",{class:"home dash"},el("header",null,el("h1",null,"Painel"),el("div",{class:"sub"},"Calculado agora, a partir das bases que você pode ver."),
+      pscSel?el("div",{class:"pscope"},el("label",{for:"pn-scope"},"Mostrar"),pscSel,pscNote?el("small",null,pscNote+(pipe||fd?" Comercial e Captação não mudam com o foco.":"")):null):null),
     el("div",{class:"dtabs",role:"tablist","aria-label":"Áreas do painel"},tabs.map(([k,n])=>el("button",{role:"tab","aria-selected":String(k===tab),class:k===tab?"on":"",onclick:go2(k)},n))),grid);
 }
 function dashTip(text,e){let t=$("#dtip");if(!text){if(t)t.hidden=true;return;}
@@ -2397,7 +2420,7 @@ function dashTip(text,e){let t=$("#dtip");if(!text){if(t)t.hidden=true;return;}
   t.textContent=text;t.hidden=false;const w=t.offsetWidth,x=Math.min(window.innerWidth-w-8,Math.max(8,e.clientX+12));t.style.left=x+"px";t.style.top=Math.max(8,e.clientY-34)+"px";}
 
 /* ============ aviso de versão nova ============ */
-const BUILD="1794875697";let newer=false;
+const BUILD="1794939811";let newer=false;
 async function checkBuild(){if(newer||!/^https?:/.test(location.protocol))return;
   try{const r=await fetch("version.txt?"+Date.now(),{cache:"no-store"});if(!r.ok)return;const v=(await r.text()).trim();
     if(v&&v!==BUILD){newer=true;const t=$("#toast");clearTimeout(toastT);t.textContent="";t.append("Há uma versão nova do workspace. ",el("button",{style:{color:"var(--mint)","font-weight":"600","margin-left":"8px"},onclick:()=>location.reload()},"Atualizar"));t.hidden=false;}}catch(_){}}
