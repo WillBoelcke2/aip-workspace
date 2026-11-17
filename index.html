@@ -1969,9 +1969,14 @@ function gcalLoad(cur,d){
     .finally(()=>{const x=page(S.cur);if(S.home)renderMain(true);else if(S.panel)return;else if(x&&d&&x.id===d.id&&curView(x).type==="calendar")drawBody(x);});
   return st;
 }
+// agenda copiada pelo robô do servidor (de hora em hora): dispensa conectar a conta Google no navegador
+const syncedCal=()=>{const c=me&&S.pages.get("cal-"+me.email.toLowerCase().replace(/[^\w]/g,"_"));return c&&Array.isArray(c.events)?c.events.map(e=>Object.assign({who:[],link:"",meet:"",time:"",end:""},e)):null;};
 function gcalBar(d,v,cur){
   // devolve [botão do cabeçalho, aviso opcional, eventos do mês]
   if(!me||!auth)return[null,null,[]];
+  const sy=syncedCal();
+  if(sy){if(!v.gcal)return[el("button",{class:"btn line","data-w":1,onclick:()=>{v.gcal=true;save(d);drawBody(d);}},icon("calendar"),"Mostrar Google Agenda"),null,[]];
+    return[el("button",{class:"btn",onclick:e=>pop(e.currentTarget,[el("h6",null,"Agenda atualizada de hora em hora"),mi("Ocultar a Google Agenda nesta visualização","x",()=>{delete v.gcal;save(d);drawBody(d);})])},icon("calendar"),"Google Agenda"),null,sy];}
   if(!v.gcal)return[el("button",{class:"btn line","data-w":1,onclick:async()=>{if(!gHas([SCOPE_CAL])&&!(await gConnect([SCOPE_CAL])))return;v.gcal=true;save(d);drawBody(d);}},icon("calendar"),"Mostrar Google Agenda"),null,[]];
   const off=el("button",{class:"btn",onclick:e=>pop(e.currentTarget,[mi("Ocultar a Google Agenda nesta visualização","x",()=>{delete v.gcal;save(d);drawBody(d);}),mi("Atualizar eventos","sort",()=>{G.cal={};drawBody(d);})])},icon("calendar"),"Google Agenda");
   const reconnect=txt=>el("button",{class:"btn line",onclick:async()=>{if(await gConnect([SCOPE_CAL])){G.err="";drawBody(d);}}},txt);
@@ -2241,7 +2246,9 @@ function homeView(){
   const linked=new Set(meets.map(x=>x.r.gcal&&x.r.gcal.id).filter(Boolean));
   const secMeet=el("section",null,el("h2",null,"Agenda de hoje"));
   let gev=[],gnote=null;
-  if(me&&auth){
+  const sy=me&&auth?syncedCal():null;
+  if(sy)gev=sy.filter(e=>e.date===today&&!linked.has(e.id)).sort((a,b)=>(a.time||"").localeCompare(b.time||""));
+  else if(me&&auth){
     if(!gHas([SCOPE_CAL]))gnote=el("button",{class:"btn line",onclick:async()=>{if(await gConnect([SCOPE_CAL])){G.err="";renderMain(true);}}},icon("calendar"),"Conectar Google Agenda");
     else if(G.err)gnote=el("span",null,G.err==="disabled"?"A Google Calendar API ainda não está ativada no projeto.":"Não foi possível ler a Google Agenda agora.");
     else{const st=gcalLoad(new Date(now.getFullYear(),now.getMonth(),1),null);if(st.loading)gnote=el("span",null,"Carregando a agenda…");else gev=st.events.filter(e=>e.date===today&&!linked.has(e.id));}
@@ -2390,7 +2397,7 @@ function dashTip(text,e){let t=$("#dtip");if(!text){if(t)t.hidden=true;return;}
   t.textContent=text;t.hidden=false;const w=t.offsetWidth,x=Math.min(window.innerWidth-w-8,Math.max(8,e.clientX+12));t.style.left=x+"px";t.style.top=Math.max(8,e.clientY-34)+"px";}
 
 /* ============ aviso de versão nova ============ */
-const BUILD="1794874842";let newer=false;
+const BUILD="1794875697";let newer=false;
 async function checkBuild(){if(newer||!/^https?:/.test(location.protocol))return;
   try{const r=await fetch("version.txt?"+Date.now(),{cache:"no-store"});if(!r.ok)return;const v=(await r.text()).trim();
     if(v&&v!==BUILD){newer=true;const t=$("#toast");clearTimeout(toastT);t.textContent="";t.append("Há uma versão nova do workspace. ",el("button",{style:{color:"var(--mint)","font-weight":"600","margin-left":"8px"},onclick:()=>location.reload()},"Atualizar"));t.hidden=false;}}catch(_){}}

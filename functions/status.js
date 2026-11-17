@@ -5,6 +5,7 @@ const when = ts => new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Pau
 const DEFS = [
   ["atas", "Atas de reunião", "todo dia às 6h00", b => [b.atas + (b.atas === 1 ? " ata importada" : " atas importadas") + ", " + b.tarefas + (b.tarefas === 1 ? " tarefa criada" : " tarefas criadas"), b.pessoas + " pessoas lidas"]],
   ["seed", "Radar Seed", "todo dia às 6h20", b => [b.conversas + " conversas lidas, " + b.atualizados + (b.atualizados === 1 ? " fundo atualizado" : " fundos atualizados") + ", " + b.novos + (b.novos === 1 ? " novo" : " novos"), b.modelo ? "Modelo: " + b.modelo : ""]],
+  ["agenda", "Agenda", "de hora em hora, das 6h às 21h", b => [b.pessoas + " pessoas atualizadas, " + b.eventos + " eventos no período"]],
   ["backup", "Backup", "todo dia às 3h10", b => [b.docs + " documentos guardados (" + b.kb + " KB)", "Cópias guardadas: " + b.guardados + " (últimos 30 dias)"]]
 ];
 function blocks(bots) {

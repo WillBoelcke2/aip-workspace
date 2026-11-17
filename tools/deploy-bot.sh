@@ -4,6 +4,7 @@
 #   ./tools/deploy-bot.sh run        roda o robô das atas agora (para testar)
 #   ./tools/deploy-bot.sh run seed   roda o Radar Seed agora
 #   ./tools/deploy-bot.sh run backup roda o backup agora
+#   ./tools/deploy-bot.sh run agenda atualiza as agendas agora
 #   ./tools/deploy-bot.sh backups    lista os backups guardados
 #   ./tools/deploy-bot.sh restore AAAA-MM-DD [id-da-pagina]   restaura uma página (e o que está dentro dela) ou, sem id, tudo
 set -euo pipefail
@@ -21,13 +22,14 @@ fi
 if [ "${1:-}" = "run" ]; then
   FN="atasBot"; SVC="atasbot"; [ "${2:-}" = "seed" ] && FN="seedRadar" && SVC="seedradar"
   [ "${2:-}" = "backup" ] && FN="backup" && SVC="backup"
+  [ "${2:-}" = "agenda" ] && FN="calSync" && SVC="calsync"
   gcloud scheduler jobs run "firebase-schedule-$FN-$REGION" --location="$REGION"
   echo "Disparado ($FN). Aguardando 90s pelo resultado..."; sleep 90
   gcloud logging read "resource.labels.service_name=\"$SVC\" AND jsonPayload.message=\"$FN\"" --limit=1 --freshness=10m --format='json(jsonPayload)'
   exit 0
 fi
 echo "1/4 Ativando as APIs necessárias..."
-gcloud services enable iamcredentials.googleapis.com drive.googleapis.com gmail.googleapis.com aiplatform.googleapis.com cloudscheduler.googleapis.com cloudfunctions.googleapis.com run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com eventarc.googleapis.com pubsub.googleapis.com
+gcloud services enable iamcredentials.googleapis.com drive.googleapis.com gmail.googleapis.com calendar-json.googleapis.com aiplatform.googleapis.com cloudscheduler.googleapis.com cloudfunctions.googleapis.com run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com eventarc.googleapis.com pubsub.googleapis.com
 NUM=$(gcloud projects describe "$PROJECT" --format='value(projectNumber)')
 SA="$NUM-compute@developer.gserviceaccount.com"
 echo "2/4 Permitindo que a função assine pedidos em nome próprio..."
@@ -46,11 +48,12 @@ cat <<MSG
   1. Abra https://admin.google.com/ac/owl/domainwidedelegation
   2. Clique em "Adicionar novo"
   3. ID do cliente:  $CID
-  4. Escopos OAuth (os dois, separados por vírgula):
-     https://www.googleapis.com/auth/drive.meet.readonly,https://www.googleapis.com/auth/gmail.readonly
+  4. Escopos OAuth (os três, separados por vírgula):
+     https://www.googleapis.com/auth/drive.meet.readonly,https://www.googleapis.com/auth/gmail.readonly,https://www.googleapis.com/auth/calendar.readonly
   5. Autorizar
-  (Se o ID já estiver na lista, passe o mouse nele, clique em Editar e deixe os dois escopos.)
+  (Se o ID já estiver na lista, passe o mouse nele, clique em Editar e deixe os três escopos.)
 
 Depois, teste com:  ./tools/deploy-bot.sh run        (atas)
                     ./tools/deploy-bot.sh run seed   (Radar Seed)
+                    ./tools/deploy-bot.sh run agenda (agendas)
 MSG

@@ -216,3 +216,7 @@ Digite `/` numa página para inserir:
 - **Gráficos** (`/barras`, `/linhas`, `/rosca`, `/número`): contam os itens de uma base ou somam um campo numérico. Linhas usa um campo de data, mês a mês. Rosca aceita até 6 fatias; acima disso vira barras.
 
 As bases também ganharam as visualizações **Feed** (itens mais recentes primeiro, com o começo do texto) e **Formulário** (quem preenche e envia cria um item; em "Campos do formulário" você escolhe o que aparece), e o Gráfico agora tem os tipos barras, linhas, rosca e número.
+
+## Agenda sem conectar
+
+O robô do servidor copia a Google Agenda de cada pessoa para o workspace de hora em hora, das 6h às 21h (os 7 dias anteriores e os 45 seguintes). Com isso a "Agenda de hoje" e os calendários mostram os compromissos sem pedir conexão. São guardados só horário, título e link do evento; eventos marcados como privados aparecem como "Ocupado" e os recusados não entram. Cada pessoa vê a própria agenda; administradores do workspace conseguem ler as cópias de todos.

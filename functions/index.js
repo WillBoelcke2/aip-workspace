@@ -144,3 +144,30 @@ exports.backup = onSchedule({ schedule: "10 3 * * *", timeZone: "America/Sao_Pau
   await report(db, "backup", stat);
   logger.info("backup", stat);
 });
+
+// ---------- Agenda: copia a agenda de cada pessoa para o workspace, de hora em hora ----------
+// Guarda só horário, título e link do evento. Cada pessoa lê a própria cópia; administradores conseguem ler todas.
+const CAL = "https://www.googleapis.com/auth/calendar.readonly";
+exports.calSync = onSchedule({ schedule: "10 6-21 * * *", timeZone: "America/Sao_Paulo", region: "southamerica-east1", timeoutSeconds: 540, memory: "512MiB" }, async () => {
+  const db = admin.firestore(), stat = { ts: Date.now(), pessoas: 0, eventos: 0, erros: {} };
+  const ms = await db.collection("members").get(), members = ms.docs.map(d => d.id).filter(e => e.endsWith("@" + DOMAIN));
+  const sa = (await auth.getCredentials()).client_email;
+  const from = new Date(Date.now() - 7 * 864e5).toISOString(), to = new Date(Date.now() + 45 * 864e5).toISOString();
+  for (const email of members) {
+    try {
+      const tk = await userToken(sa, email, CAL);
+      const r = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events?singleEvents=true&orderBy=startTime&maxResults=600&timeZone=America/Sao_Paulo&timeMin=" + encodeURIComponent(from) + "&timeMax=" + encodeURIComponent(to) + "&fields=" + encodeURIComponent("items(id,status,summary,htmlLink,hangoutLink,visibility,start,end,attendees(self,responseStatus))"), { headers: { Authorization: "Bearer " + tk } });
+      const j = await r.json(); if (!r.ok) throw new Error((j.error && j.error.message) || "calendar " + r.status);
+      const events = (j.items || []).filter(e => e.status !== "cancelled" && e.start && !(e.attendees || []).some(a => a.self && a.responseStatus === "declined")).map(e => {
+        const allDay = !!e.start.date, s0 = e.start.dateTime || "", e0 = (e.end && e.end.dateTime) || "", priv = e.visibility === "private" || e.visibility === "confidential";
+        return { id: e.id, title: priv ? "Ocupado" : String(e.summary || "(sem título)").slice(0, 160), date: allDay ? e.start.date : s0.slice(0, 10), time: allDay ? "" : s0.slice(11, 16), end: allDay ? "" : e0.slice(11, 16), link: priv ? "" : e.htmlLink || "", meet: priv ? "" : e.hangoutLink || "" };
+      });
+      const id = "cal-" + email.toLowerCase().replace(/[^\w]/g, "_"), ref = db.collection("pages").doc(id), sig = JSON.stringify(events), cur = await ref.get();
+      stat.pessoas++; stat.eventos += events.length;
+      if (cur.exists && cur.data().sig === sig.length + ":" + sig.slice(0, 40) + sig.slice(-40) && JSON.stringify(cur.data().events) === sig) continue;
+      await ref.set({ id, kind: "cal", title: "Agenda", parent: "__agenda", order: 0, props: {}, blocks: [], events, sig: sig.length + ":" + sig.slice(0, 40) + sig.slice(-40), lock: true, acl: [email], ts: Date.now(), sid: "bot", by: "bot" });
+    } catch (e) { stat.erros[email.split("@")[0]] = String(e.message || e).slice(0, 160); }
+  }
+  await report(db, "agenda", stat);
+  logger.info("calSync", stat);
+});
