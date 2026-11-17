@@ -205,3 +205,14 @@ A mesma publicação inclui o Radar Seed: todo dia às 6h20 ele lê os e-mails d
 ## Painel
 
 O Painel tem uma aba por área: **Resumo**, **Execução**, **Metas**, **Comercial** e **Captação** (as duas últimas só aparecem para quem tem acesso às bases). O Resumo abre com o que precisa de atenção e um cartão por área; clicar num cartão leva à aba dela. Passe o mouse sobre qualquer barra para ver o número exato. Tudo é calculado na hora a partir das bases.
+
+## Páginas com bases, gráficos e colunas
+
+Digite `/` numa página para inserir:
+
+- **Colunas** (`/colunas`): 2 a 5 colunas lado a lado. Cada coluna recebe blocos comuns, inclusive bases e gráficos. No ponto de arraste que aparece à esquerda ao passar o mouse sobre as colunas dá para mudar a quantidade, desfazer as colunas (o conteúdo fica) ou excluir tudo. No celular, as colunas ficam uma embaixo da outra.
+- **Visualização de uma base** (`/visualização`): mostra uma base que já existe dentro da página, com formato, filtro e ordenação próprios. O filtro vale só para aquele bloco; os itens são os mesmos da base. "Novo" cria o item já com os valores do filtro.
+- **Base de dados - em linha** (`/inline`): cria uma base nova que aparece dentro da própria página.
+- **Gráficos** (`/barras`, `/linhas`, `/rosca`, `/número`): contam os itens de uma base ou somam um campo numérico. Linhas usa um campo de data, mês a mês. Rosca aceita até 6 fatias; acima disso vira barras.
+
+As bases também ganharam as visualizações **Feed** (itens mais recentes primeiro, com o começo do texto) e **Formulário** (quem preenche e envia cria um item; em "Campos do formulário" você escolhe o que aparece), e o Gráfico agora tem os tipos barras, linhas, rosca e número.
