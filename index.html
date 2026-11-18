@@ -2314,7 +2314,7 @@ function panelView(){
   const stName=m=>{const o=opt(stOf(m.d),m.r);return o?norm(o.name):"";},mDone=metas.filter(m=>/conclu/.test(stName(m))),mRisk=metas.filter(m=>/risco|atras|bloq|fora/.test(stName(m)));
   const td0=taskDbs[0],md0=metasDbs[0];
   const fd=page("fundos")&&alive(page("fundos"))?page("fundos"):null,fst=fd&&stOf(fd),ffu=fd&&P(fd,p=>p.type==="date"&&/follow/.test(norm(p.name))),funds=fd?kids(fd.id):[];
-  const fName=r=>{const o=opt(fst,r);return o?norm(o.name):"";},fActive=funds.filter(r=>/^(em conversa|due diligence|term sheet)/.test(fName(r))),fClosed=r=>/^(passou|sem fit|investiu)/.test(fName(r));
+  const fName=r=>{const o=opt(fst,r);return o?norm(o.name):"";},fActive=funds.filter(r=>/^(em conversa|due diligence|term sheet)/.test(fName(r))),fClosed=r=>/^(passou|sem fit|investiu|sem resposta)/.test(fName(r));
   const ful=fd&&(P(fd,p=>p.id==="ult"&&p.type==="date")||P(fd,p=>p.type==="date"&&/ultima conversa|ultimo contato/.test(norm(p.name))));
   // vencido = a data passou e não houve conversa registrada desde então (a data de hoje ainda não é atraso)
   const fPend=r=>{const f=r.props?.[ffu.id],u=ful&&r.props?.[ful.id];return!!f&&!fClosed(r)&&!(u&&u>=f);};
@@ -2408,7 +2408,7 @@ function panelView(){
     const tier=P(fd,p=>p.type==="select"&&/^tier/.test(norm(p.name))),onda=P(fd,p=>p.type==="select"&&/^onda/.test(norm(p.name))),os=(fst.options||[]);
     const byOpt=pr=>(pr.options||[]).map(o=>({label:o.name,v:funds.filter(r=>r.props?.[pr.id]===o.id).length})).filter(x=>x.v);
     grid.append(kpis(kpi(fActive.length,"em conversa ou além"),kpi(funds.filter(r=>/^(due diligence|term sheet)/.test(fName(r))).length,"em due diligence ou term sheet"),kpi(fLate.length,"follow-ups vencidos",{warn:1,hint:fToday.length?plural(fToday.length,"vence hoje","vencem hoje"):"sem conversa desde a data marcada"}),kpi(funds.filter(r=>fName(r).startsWith("investiu")).length,"já investiram"),kpi(funds.length,"fundos no CRM",{hint:funds.filter(r=>/^(mapeado|a conversar)/.test(fName(r))).length+" ainda sem conversa"})),
-      card("Funil de fundos por status",hbars(os.map((o,i)=>({label:o.name,parts:[{v:funds.filter(r=>r.props?.[fst.id]===o.id).length,cls:/^(passou|sem fit)/.test(norm(o.name))?"neutral":"",op:/^(passou|sem fit)/.test(norm(o.name))?1:ord(Math.min(i,5),6)}]})).filter(r=>r.parts[0].v),{wide:1}),{span:7,href:"#p-"+fd.id,note:"Tom mais escuro = mais perto do cheque. Cinza = fora da rodada."}),
+      card("Funil de fundos por status",hbars(os.map((o,i)=>({label:o.name,parts:[{v:funds.filter(r=>r.props?.[fst.id]===o.id).length,cls:/^(passou|sem fit|sem resposta)/.test(norm(o.name))?"neutral":"",op:/^(passou|sem fit|sem resposta)/.test(norm(o.name))?1:ord(Math.min(i,5),6)}]})).filter(r=>r.parts[0].v),{wide:1}),{span:7,href:"#p-"+fd.id,note:"Tom mais escuro = mais perto do cheque. Cinza = fora da rodada."}),
       card("Follow-ups por semana",ffu?cols(weekly(funds.filter(fPend),r=>r.props?.[ffu.id]),{empty:"Nenhum follow-up marcado."}):empty("A base não tem data de follow-up."),{span:5}),
       tier?card("Por tier",hbars(byOpt(tier)),{span:6}):null,onda?card("Por onda",hbars(byOpt(onda)),{span:6}):null,
       card("Follow-ups vencidos",fLate.length?el("div",null,[...fLate].sort((x,y)=>String(y.props[ffu.id]).localeCompare(String(x.props[ffu.id]))).slice(0,12).map(r=>el("div",{class:"hrow"},el("a",{href:"#p-"+r.id},r.title||"Sem nome"),el("small",null,(opt(fst,r)||{}).name||""),el("small",{class:"late"},fmtDate(r.props[ffu.id]))))):empty("Nenhum follow-up vencido."),{span:12}));
@@ -2423,7 +2423,7 @@ function dashTip(text,e){let t=$("#dtip");if(!text){if(t)t.hidden=true;return;}
   t.textContent=text;t.hidden=false;const w=t.offsetWidth,x=Math.min(window.innerWidth-w-8,Math.max(8,e.clientX+12));t.style.left=x+"px";t.style.top=Math.max(8,e.clientY-34)+"px";}
 
 /* ============ aviso de versão nova ============ */
-const BUILD="1795026227";let newer=false;
+const BUILD="1795026536";let newer=false;
 async function checkBuild(){if(newer||!/^https?:/.test(location.protocol))return;
   try{const r=await fetch("version.txt?"+Date.now(),{cache:"no-store"});if(!r.ok)return;const v=(await r.text()).trim();
     if(v&&v!==BUILD){newer=true;const t=$("#toast");clearTimeout(toastT);t.textContent="";t.append("Há uma versão nova do workspace. ",el("button",{style:{color:"var(--mint)","font-weight":"600","margin-left":"8px"},onclick:()=>location.reload()},"Atualizar"));t.hidden=false;}}catch(_){}}

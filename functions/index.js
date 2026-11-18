@@ -108,12 +108,15 @@ exports.seedRadar = onSchedule({ schedule: "20 6 * * *", timeZone: "America/Sao_
       const people = msgs.map(m => hd(m, "from").value + " " + hd(m, "to").value + " " + hd(m, "cc").value).join(" ").toLowerCase();
       const ext = (people.match(/[\w.+-]+@[\w.-]+/g) || []).filter(e => !e.endsWith("@" + DOMAIN) && !/no-?reply|notification|mailer-daemon|calendar-notification|@google\.com|@docs\.google\.com/.test(e));
       if (!ext.length) continue;
-      threads.push({ id: t.id, subject: hd(msgs[0], "subject").value.slice(0, 140), msgs: msgs.slice(-2).map(m => ({ date: new Date(+m.internalDate || Date.now()).toISOString().slice(0, 10), from: hd(m, "from").value.slice(0, 120), to: hd(m, "to").value.slice(0, 160), text: clean(bodyText(m.payload) || m.snippet).slice(0, 1400) })) });
+      const lastFrom = hd(lastM, "from").value.toLowerCase();
+      threads.push({ dir: lastFrom.includes(owner.toLowerCase()) ? "out" : "in", lastDate: new Date(+lastM.internalDate || Date.now()).toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }), id: t.id, subject: hd(msgs[0], "subject").value.slice(0, 140), msgs: msgs.slice(-2).map(m => ({ date: new Date(+m.internalDate || Date.now()).toISOString().slice(0, 10), from: hd(m, "from").value.slice(0, 120), to: hd(m, "to").value.slice(0, 160), text: clean(bodyText(m.payload) || m.snippet).slice(0, 1400) })) });
       if (threads.length >= 40) break;
     }
     stat.conversas = threads.length;
     let items = [];
     for (let i = 0; i < threads.length; i += 20) { const g = await gemini(seed.prompt(threads.slice(i, i + 20), seed.fundList(pages), today, ownerName)); stat.modelo = g.model; items = items.concat(Array.isArray(g.items) ? g.items : []); }
+    const tmeta = new Map(threads.map(t => [t.id, t]));
+    items.forEach(it => { const m = tmeta.get(String(it.thread || "").replace(/^thread\s+/, "")); if (m) { it.dir = m.dir; it.lastDate = m.lastDate; } });
     const res = seed.apply(pages, items, today);
     stat.atualizados = res.rep.up.length; stat.novos = res.rep.novo.length;
     const docs = res.docs.concat([seed.reportPage(pages, res, today, threads.length + (threads.length === 1 ? " conversa externa lida." : " conversas externas lidas."))]);

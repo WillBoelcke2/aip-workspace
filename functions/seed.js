@@ -25,10 +25,34 @@ function fundList(pages) {
   return rows(pages, d).map(r => ({ id: r.id, nome: r.title || "", contato: s.contato ? String((r.props || {})[s.contato.id] || "").slice(0, 60) : "", dominio: s.email ? domain((r.props || {})[s.email.id]) : "" }));
 }
 
+// Regra de follow-up: cada mensagem enviada sem resposta conta uma tentativa e marca o próximo follow-up para 7 dias depois.
+// Depois de STRIKES tentativas seguidas sem retorno, passada mais uma semana, o fundo vai para "Sem resposta".
+const STRIKES = 3;
+const addDays = (d, n) => { const x = new Date(d + "T12:00:00Z"); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+function ensureFup(d) {
+  const ps = d.schema.props, st = ps.find(p => p.type === "status"); let ch = false;
+  let tent = ps.find(p => p.id === "tent" && p.type === "number") || ps.find(p => p.type === "number" && /^tentativas/.test(norm(p.name)));
+  if (!tent) { tent = { id: "tent", name: "Tentativas sem retorno", type: "number" }; ps.push(tent); ch = true; }
+  if (st && !(st.options || []).some(o => /^sem resposta/.test(norm(o.name)))) { st.options = (st.options || []).concat([{ id: "st-semresp", name: "Sem resposta", color: "gray" }]); ch = true; }
+  return { tent, ch };
+}
 function apply(pages, items, today) {
   const d = fundDb(pages), rep = { up: [], novo: [], voce: [], amb: [] }, out = new Map();
   if (!d) return { docs: [], rep, why: "no-db" };
+  const { tent, ch: schemaChanged } = ensureFup(d);
   const s = schema(d), all = rows(pages, d), now = Date.now();
+  const stNow = r => norm(((s.st && (s.st.options || []).find(o => o.id === (r.props || {})[s.st.id])) || {}).name || ""), closed = r => /^(passou|sem fit|investiu|sem resposta)/.test(stNow(r));
+  const touch = (r, it, ch) => { // direção da última mensagem da conversa: "out" = enviada pelo dono, "in" = recebida
+    if (!isDate(it.lastDate) || closed(r)) return;
+    if (it.dir === "out" && r.fupOut !== it.lastDate) {
+      const n = (+r.props[tent.id] || 0) + 1; r.props[tent.id] = n; r.fupOut = it.lastDate;
+      if (s.fup && !(isDate(it.followup) && it.followup >= today)) r.props[s.fup.id] = addDays(it.lastDate, 7);
+      ch.push("tentativa " + n + " de " + STRIKES + (s.fup ? ", próximo follow-up " + fmt(r.props[s.fup.id]) : ""));
+    } else if (it.dir === "in") {
+      if ((+r.props[tent.id] || 0) > 0) { r.props[tent.id] = 0; ch.push("respondeu, tentativas zeradas"); }
+      if (s.fup && isDate(r.props[s.fup.id]) && !(isDate(it.followup) && it.followup >= today)) { delete r.props[s.fup.id]; ch.push("follow-up concluído"); }
+    }
+  };
   const stamp = r => Object.assign(r, { ts: now, sid: "bot", by: "bot", lock: !!d.lock, acl: d.lock && Array.isArray(d.acl) ? d.acl.slice() : [] });
   const opt = re => s.st && (s.st.options || []).find(o => re.test(norm(o.name)));
   const SIG = { meeting_scheduled: /^em conversa/, materials_requested: /^em conversa/, due_diligence: /^due diligence/, term_sheet: /^term sheet/, passed: /^passou/ };
@@ -48,6 +72,7 @@ function apply(pages, items, today) {
       if (s.fup && isDate(it.followup) && it.followup >= today && r.props[s.fup.id] !== it.followup) { r.props[s.fup.id] = it.followup; ch.push("follow-up " + fmt(it.followup)); }
       if (s.st && SIG[it.signal]) { const os = s.st.options || [], ci = os.findIndex(o => o.id === r.props[s.st.id]), tg = opt(SIG[it.signal]), ti = tg ? os.indexOf(tg) : -1, fin = ci >= 0 && /^investiu/.test(norm(os[ci].name));
         if (tg && !fin && ti !== ci && (it.signal === "passed" || ti > ci)) { r.props[s.st.id] = tg.id; ch.push("status → " + tg.name); } }
+      touch(r, it, ch);
       if (ch.length) { out.set(r.id, stamp(r)); rep.up.push((r.title || name) + ": " + ch.join(", ") + (subj ? " — " + subj : "")); }
     } else {
       const n = { id: "nfb-" + rid() + rid(), kind: "page", title: name, parent: d.id, order: (Math.max(0, ...all.map(x => x.order || 0))) + 1, props: {}, blocks: [], src: "radar-seed" };
@@ -55,12 +80,24 @@ function apply(pages, items, today) {
       if (s.ult) n.props[s.ult.id] = date; if (s.notas) n.props[s.notas.id] = line.replace("] ", "] primeiro contato: ");
       if (s.fup && isDate(it.followup) && it.followup >= today) n.props[s.fup.id] = it.followup;
       const st0 = (SIG[it.signal] && opt(SIG[it.signal])) || opt(/^a conversar/) || (s.st && (s.st.options || [])[0]); if (s.st && st0) n.props[s.st.id] = st0.id;
+      touch(n, it, []);
       stamp(n); pages.set(n.id, n); all.push(n); out.set(n.id, n); rep.novo.push(name + (subj ? " — " + subj : ""));
     }
     if (it.needs_reply) rep.voce.push("Responder " + name + (subj ? " — " + subj : ""));
   }
+  // 3 tentativas sem retorno e mais uma semana de espera: sai do funil (só nas fases iniciais; fase avançada vira alerta)
+  const lost = s.st && (s.st.options || []).find(o => /^sem resposta/.test(norm(o.name)));
+  if (s.fup && s.st) all.forEach(r => { const n = +((r.props || {})[tent.id]) || 0, f = (r.props || {})[s.fup.id];
+    if (n < STRIKES || !isDate(f) || f >= today || closed(r)) return;
+    if (lost && /^(mapeado|a conversar|em conversa)/.test(stNow(r))) {
+      r.props[s.st.id] = lost.id; delete r.props[s.fup.id];
+      if (s.notas) r.props[s.notas.id] = (r.props[s.notas.id] ? r.props[s.notas.id] + "\n" : "") + "[" + today + "] " + STRIKES + " tentativas sem retorno: movido para Sem resposta";
+      out.set(r.id, stamp(r)); rep.up.push((r.title || "") + ": " + STRIKES + " tentativas sem retorno, movido para Sem resposta");
+    } else rep.voce.push("Sem retorno após " + STRIKES + " tentativas (fase avançada, não movi): " + (r.title || ""));
+  });
   // vencido = a data passou e não houve conversa registrada desde então; a data de hoje ainda não é atraso
-  if (s.fup) all.filter(r => isDate((r.props || {})[s.fup.id]) && r.props[s.fup.id] < today && !(s.ult && isDate(r.props[s.ult.id]) && r.props[s.ult.id] >= r.props[s.fup.id]) && !(s.st && /^(passou|sem fit|investiu)/.test(norm(((s.st.options || []).find(o => o.id === r.props[s.st.id]) || {}).name || "")))).sort((a, b) => a.props[s.fup.id] < b.props[s.fup.id] ? 1 : -1).slice(0, 12).forEach(r => rep.voce.push("Follow-up vencido: " + (r.title || "") + " (" + fmt(r.props[s.fup.id]) + ")"));
+  if (s.fup) all.filter(r => isDate((r.props || {})[s.fup.id]) && r.props[s.fup.id] < today && !(s.ult && isDate(r.props[s.ult.id]) && r.props[s.ult.id] >= r.props[s.fup.id]) && !(s.st && /^(passou|sem fit|investiu|sem resposta)/.test(norm(((s.st.options || []).find(o => o.id === r.props[s.st.id]) || {}).name || "")))).sort((a, b) => a.props[s.fup.id] < b.props[s.fup.id] ? 1 : -1).slice(0, 12).forEach(r => rep.voce.push("Follow-up vencido: " + (r.title || "") + " (" + fmt(r.props[s.fup.id]) + ")"));
+  if (schemaChanged) out.set(d.id, Object.assign(d, { ts: now, sid: "bot", by: "bot" }));
   return { docs: [...out.values()], rep, why: "ok", lock: !!d.lock, acl: Array.isArray(d.acl) ? d.acl.slice() : [] };
 }
 

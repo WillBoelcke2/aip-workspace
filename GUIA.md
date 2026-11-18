@@ -224,3 +224,10 @@ O robô do servidor copia a Google Agenda de cada pessoa para o workspace de hor
 ## Foco por equipe
 
 O Painel e a base de Tarefas abrem mostrando as suas equipes: o que é das equipes em que você está e o que está atribuído a você, mesmo sem equipe. No seletor "Mostrar" (no Painel) ou ao lado de "Ordenar" (em Tarefas) dá para trocar para **Toda a empresa** ou para uma equipe específica; a escolha fica guardada no seu navegador. É um filtro de quem olha, não uma restrição: ninguém perde acesso a nada. Quem está em todas as equipes abre em "Toda a empresa". Uma tarefa criada com o foco ligado já nasce na sua equipe (quando você tem só uma) e com você como responsável.
+
+### Regra de follow-up dos fundos (Radar Seed)
+
+- Cada mensagem que o dono do workspace envia a um fundo, sem resposta desde a anterior, conta **uma tentativa** e marca o próximo follow-up para **7 dias depois**. O campo "Tentativas sem retorno" mostra a contagem.
+- Quando o fundo responde, a contagem zera e o follow-up é dado como concluído (a menos que o e-mail combine uma nova data).
+- Depois de **3 tentativas seguidas sem retorno**, passada mais uma semana, o fundo vai para o status **Sem resposta** (com uma nota datada). Isso só acontece nas fases Mapeado, A conversar e Em conversa; em due diligence ou term sheet o robô apenas avisa na página Radar Seed.
+- Follow-up só aparece como vencido no Painel se a data passou e não houve conversa desde então.
