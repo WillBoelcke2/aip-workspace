@@ -59,7 +59,8 @@ function apply(pages, items, today) {
     }
     if (it.needs_reply) rep.voce.push("Responder " + name + (subj ? " — " + subj : ""));
   }
-  if (s.fup) all.filter(r => isDate((r.props || {})[s.fup.id]) && r.props[s.fup.id] <= today && !(s.st && /^(passou|sem fit|investiu)/.test(norm(((s.st.options || []).find(o => o.id === r.props[s.st.id]) || {}).name || "")))).sort((a, b) => a.props[s.fup.id] < b.props[s.fup.id] ? 1 : -1).slice(0, 12).forEach(r => rep.voce.push("Follow-up vencido: " + (r.title || "") + " (" + fmt(r.props[s.fup.id]) + ")"));
+  // vencido = a data passou e não houve conversa registrada desde então; a data de hoje ainda não é atraso
+  if (s.fup) all.filter(r => isDate((r.props || {})[s.fup.id]) && r.props[s.fup.id] < today && !(s.ult && isDate(r.props[s.ult.id]) && r.props[s.ult.id] >= r.props[s.fup.id]) && !(s.st && /^(passou|sem fit|investiu)/.test(norm(((s.st.options || []).find(o => o.id === r.props[s.st.id]) || {}).name || "")))).sort((a, b) => a.props[s.fup.id] < b.props[s.fup.id] ? 1 : -1).slice(0, 12).forEach(r => rep.voce.push("Follow-up vencido: " + (r.title || "") + " (" + fmt(r.props[s.fup.id]) + ")"));
   return { docs: [...out.values()], rep, why: "ok", lock: !!d.lock, acl: Array.isArray(d.acl) ? d.acl.slice() : [] };
 }
 
