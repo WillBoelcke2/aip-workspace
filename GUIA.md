@@ -235,3 +235,7 @@ O Painel e a base de Tarefas abrem mostrando as suas equipes: o que é das equip
 ## Mover uma página para dentro de outra
 
 Nos três pontinhos ao lado do nome da página, no menu lateral, escolha **Mover para…**, busque a página de destino e clique nela. A página leva junto tudo o que está dentro dela. Se o destino for uma página de acesso restrito, só quem acessa o destino continua vendo a página movida. Para voltar à raiz, escolha **Início do workspace**.
+
+## Visualização "One page"
+
+Em qualquer base, adicione uma visualização do tipo **One page** para ler um item por vez como um relatório de uma página: faixa de indicadores no topo, seletor do item com anterior e próximo, cabeçalho com as etiquetas e, abaixo, os campos organizados em cartões. Filtro, ordenação e busca da base valem aqui também. **Abrir e editar** abre o item para alterar os campos.
