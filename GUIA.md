@@ -243,3 +243,9 @@ Em qualquer base, adicione uma visualização do tipo **One page** para ler um i
 ## Mudar a ordem das páginas no menu lateral
 
 Arraste a página pelo nome e solte acima ou abaixo de outra para reordenar (uma linha verde mostra onde ela vai ficar). Soltar no meio de uma página coloca a arrastada dentro dela. Sem arrastar, use **Mover para cima** e **Mover para baixo** nos três pontinhos. A ordem vale para todo o time.
+
+## Desfazer, refazer e selecionar tudo
+
+**Ctrl+Z** desfaz a última alteração feita por você nesta sessão: texto digitado, bloco apagado ou movido, campo de uma base, página enviada para a lixeira, página movida. **Ctrl+Shift+Z** (ou Ctrl+Y) refaz. O histórico vale enquanto a aba estiver aberta; para voltar mais longe, use o histórico de versões da página. Dentro de um campo de busca ou de formulário, o Ctrl+Z é o do próprio campo.
+
+**Ctrl+A** dentro de um bloco seleciona o texto do bloco; apertando de novo, seleciona a página inteira. Com tudo selecionado, Ctrl+C copia o texto, Ctrl+X recorta e Delete apaga os blocos (Ctrl+Z traz de volta).
