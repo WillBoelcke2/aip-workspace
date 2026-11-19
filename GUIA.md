@@ -231,3 +231,7 @@ O Painel e a base de Tarefas abrem mostrando as suas equipes: o que é das equip
 - Quando o fundo responde, a contagem zera e o follow-up é dado como concluído (a menos que o e-mail combine uma nova data).
 - Depois de **3 tentativas seguidas sem retorno**, passada mais uma semana, o fundo vai para o status **Sem resposta** (com uma nota datada). Isso só acontece nas fases Mapeado, A conversar e Em conversa; em due diligence ou term sheet o robô apenas avisa na página Radar Seed.
 - Follow-up só aparece como vencido no Painel se a data passou e não houve conversa desde então.
+
+## Mover uma página para dentro de outra
+
+Nos três pontinhos ao lado do nome da página, no menu lateral, escolha **Mover para…**, busque a página de destino e clique nela. A página leva junto tudo o que está dentro dela. Se o destino for uma página de acesso restrito, só quem acessa o destino continua vendo a página movida. Para voltar à raiz, escolha **Início do workspace**.
