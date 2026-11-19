@@ -1545,6 +1545,7 @@ function viewMenu(anchor,d,v,o={}){
     v.type==="chart"&&(ck==="bar"||ck==="donut")&&F("vw-grp","Agrupar por",sel("vw-grp",props(d).filter(p=>OPT(p.type)).map(p=>[p.id,p.name]),v.group||"",x=>{v.group=x;C();})),
     v.type==="chart"&&ck==="line"&&dts.length&&F("vw-date","Data usada",sel("vw-date",dts.map(p=>[p.id,p.name]),v.dateProp||dts[0].id,x=>{v.dateProp=x;C();})),
     v.type==="chart"&&F("vw-sum","Medida",sel("vw-sum",[["","Quantidade de itens"],...props(d).filter(p=>p.type==="number").map(p=>[p.id,"Soma de "+p.name])],v.sum||"",x=>{if(x)v.sum=x;else delete v.sum;C();})),
+    v.type==="table"&&el("div",{class:"field"},el("label",null,"Colunas mostradas"),el("div",{style:{"max-height":"220px","overflow-y":"auto"}},props(d).filter(p=>p.type!=="title").map(p=>{const id="vc-"+p.id,cb=el("input",{type:"checkbox",id,checked:!Array.isArray(v.cols)||v.cols.includes(p.id),onchange:()=>{const all=props(d).filter(x=>x.type!=="title").map(x=>x.id),h=new Set(Array.isArray(v.cols)?v.cols:all);if(cb.checked)h.add(p.id);else h.delete(p.id);const n=all.filter(x=>h.has(x));if(n.length===all.length)delete v.cols;else v.cols=n;C();}});return el("label",{class:"ckrow",for:id},cb,p.name);}))),
     v.type==="form"&&el("div",{class:"field"},el("label",null,"Campos do formulário"),props(d).filter(p=>p.type!=="title"&&p.type!=="relation").map(p=>{const id="vf-"+p.id,cb=el("input",{type:"checkbox",id,checked:!(v.hide||[]).includes(p.id),onchange:()=>{const h=new Set(v.hide||[]);if(cb.checked)h.delete(p.id);else h.add(p.id);v.hide=[...h];C();}});return el("label",{class:"ckrow",for:id},cb,p.name);})),
     o.embed&&["table","list","gallery","feed"].includes(v.type)&&F("vw-lim","Linhas mostradas",sel("vw-lim",[["5","5"],["10","10"],["20","20"],["0","Todas"]],String(v.limit==null?10:v.limit),x=>{v.limit=+x;C();})),
     !o.embed&&d.views.length>1&&el("hr"),!o.embed&&d.views.length>1&&mi("Excluir visualização","trash",()=>{d.views=d.views.filter(x=>x!==v);save(d);drawDb(d);},"danger")]);
@@ -1683,10 +1684,10 @@ function addProp(anchor,d){
   pop(anchor,[el("h6",null,"Tipo da nova propriedade"),Object.entries(PT).filter(([k])=>k!=="title").map(([k,l])=>mi(l,null,()=>{
     if(k==="relation"){const dbs=[...S.pages.values()].filter(x=>x.kind==="db"&&alive(x));
       return pop(r,[el("h6",null,"Vincular a qual base?"),dbs.map(x=>mi(x.title||"Base sem título","db",()=>{d.schema.props.push({id:rid(),name:x.id===d.id?"Relacionados":(x.title||"Relação"),type:"relation",db:x.id});save(d);refreshDb();}))]);}
-    const pr={id:rid(),name:l,type:k};if(OPT(k))pr.options=[];d.schema.props.push(pr);save(d);refreshDb();}))]);
+    const pr={id:rid(),name:l,type:k};if(OPT(k))pr.options=[];d.schema.props.push(pr);const cv=curView(d);if(cv&&Array.isArray(cv.cols))cv.cols.push(pr.id);save(d);refreshDb();}))]);
 }
 function drawTable(b,d,v,rows){
-  const ps=props(d);
+  const ps=Array.isArray(v.cols)?props(d).filter(p=>p.type==="title"||v.cols.includes(p.id)):props(d);
   const head=el("tr",null,ps.map(pr=>el("th",null,el("button",{disabled:S.ro,onclick:e=>propMenu(e.currentTarget,d,pr)},pr.name))),
     el("th",{style:{width:"44px"}},el("button",{"data-w":1,title:"Adicionar propriedade","aria-label":"Adicionar propriedade",onclick:e=>addProp(e.currentTarget,d)},icon("plus"))));
   const mk=r=>el("tr",{"data-row":r.id},ps.map(pr=>el("td",null,pr.type==="title"
@@ -2423,7 +2424,7 @@ function dashTip(text,e){let t=$("#dtip");if(!text){if(t)t.hidden=true;return;}
   t.textContent=text;t.hidden=false;const w=t.offsetWidth,x=Math.min(window.innerWidth-w-8,Math.max(8,e.clientX+12));t.style.left=x+"px";t.style.top=Math.max(8,e.clientY-34)+"px";}
 
 /* ============ aviso de versão nova ============ */
-const BUILD="1795026536";let newer=false;
+const BUILD="1795094274";let newer=false;
 async function checkBuild(){if(newer||!/^https?:/.test(location.protocol))return;
   try{const r=await fetch("version.txt?"+Date.now(),{cache:"no-store"});if(!r.ok)return;const v=(await r.text()).trim();
     if(v&&v!==BUILD){newer=true;const t=$("#toast");clearTimeout(toastT);t.textContent="";t.append("Há uma versão nova do workspace. ",el("button",{style:{color:"var(--mint)","font-weight":"600","margin-left":"8px"},onclick:()=>location.reload()},"Atualizar"));t.hidden=false;}}catch(_){}}
