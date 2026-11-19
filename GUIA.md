@@ -239,3 +239,7 @@ Nos três pontinhos ao lado do nome da página, no menu lateral, escolha **Mover
 ## Visualização "One page"
 
 Em qualquer base, adicione uma visualização do tipo **One page** para ler um item por vez como um relatório de uma página: faixa de indicadores no topo, seletor do item com anterior e próximo, cabeçalho com as etiquetas e, abaixo, os campos organizados em cartões. Filtro, ordenação e busca da base valem aqui também. **Abrir e editar** abre o item para alterar os campos.
+
+## Mudar a ordem das páginas no menu lateral
+
+Arraste a página pelo nome e solte acima ou abaixo de outra para reordenar (uma linha verde mostra onde ela vai ficar). Soltar no meio de uma página coloca a arrastada dentro dela. Sem arrastar, use **Mover para cima** e **Mover para baixo** nos três pontinhos. A ordem vale para todo o time.
