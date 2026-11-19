@@ -1498,6 +1498,7 @@ function visible(d,v){
 }
 const brl=n=>Number(n).toLocaleString("pt-BR",{style:"currency",currency:"BRL",maximumFractionDigits:0});
 const keyProp=(d,k)=>props(d).find(p=>p.key===k);
+const dueProp=d=>{const ds=props(d).filter(p=>p.type==="date");return ds.find(p=>!/in[ií]cio/i.test(p.name))||ds[0];};
 const isOpenDeal=(d,r)=>{const st=keyProp(d,"stage"),v=st&&r.props?.[st.id];return!((d.won||[]).includes(v)||(d.lost||[]).includes(v));};
 function missing(row,d){
   if(!d||!d.req)return[];const st=keyProp(d,"stage"),need=st&&d.req[row.props?.[st.id]]||[];
@@ -2117,7 +2118,7 @@ function stamp(row,pid){if(!me)return;row.asg=row.asg||{};row.asg[pid]={by:me.em
 function quickTask(anchor,preset){
   const d=taskDb();if(!d){toast("Ainda não existe a base Tarefas.");return;}
   preset=preset||{};
-  const who=props(d).find(p=>p.type==="person"),due=props(d).find(p=>p.type==="date"),st=props(d).find(p=>p.type==="status");
+  const who=props(d).find(p=>p.type==="person"),due=dueProp(d),st=props(d).find(p=>p.type==="status");
   const mine=who&&whoAmI(who.options||[]);
   const ti=el("input",{class:"inp",id:"qt-title",placeholder:"O que precisa ser feito?","aria-label":"Tarefa",value:preset.title||"",maxlength:200});
   const ws=who?sel("qt-who",[["","Sem responsável"],...(who.options||[]).slice().sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")).map(o=>[o.id,o.name])],mine?mine.id:"",()=>{}):null;
@@ -2308,12 +2309,12 @@ function homeView(){
   /* tarefas */
   const taskDbs=dbs.filter(d=>d.tpl==="tarefas"),names=[...new Set(dbs.filter(d=>d.tpl==="tarefas"||d.tpl==="crm").flatMap(d=>props(d).filter(p=>p.type==="person").flatMap(p=>(p.options||[]).map(o=>o.name))))];
   const meOpt=whoAmI(names.map(n=>({name:n}))),tasks=[];
-  taskDbs.forEach(d=>{const who=props(d).find(p=>p.type==="person"),st=props(d).find(p=>p.type==="status"),due=props(d).find(p=>p.type==="date");
+  taskDbs.forEach(d=>{const who=props(d).find(p=>p.type==="person"),st=props(d).find(p=>p.type==="status"),due=dueProp(d);
     const mine=who&&meOpt&&(who.options||[]).find(o=>norm(o.name)===norm(meOpt.name)),doneIds=new Set((st?.options||[]).filter(o=>DONE.test(norm(o.name))).map(o=>o.id)),doneOpt=(st?.options||[]).find(o=>/conclu|feit|done|finaliz|entreg/.test(norm(o.name)));
     if(!mine)return;
     kids(d.id).forEach(r=>{if(r.props?.[who.id]!==mine.id||(st&&doneIds.has(r.props?.[st.id])))return;tasks.push({r,d,st,doneOpt,due:due&&r.props?.[due.id]||""});});});
   const mt=myTeams(),mtIds=mt.map(x=>x.id),teamTasks=[];
-  if(mt.length)taskDbs.forEach(d=>{const tr=teamRel(d),who=props(d).find(p=>p.type==="person"),st=props(d).find(p=>p.type==="status"),due=props(d).find(p=>p.type==="date");if(!tr)return;
+  if(mt.length)taskDbs.forEach(d=>{const tr=teamRel(d),who=props(d).find(p=>p.type==="person"),st=props(d).find(p=>p.type==="status"),due=dueProp(d);if(!tr)return;
     const doneIds=new Set((st?.options||[]).filter(o=>DONE.test(norm(o.name))).map(o=>o.id)),doneOpt=(st?.options||[]).find(o=>/conclu|feit|done|finaliz|entreg/.test(norm(o.name)));
     kids(d.id).forEach(r=>{const tm=(Array.isArray(r.props?.[tr.id])?r.props[tr.id]:[]).find(id=>mtIds.includes(id));if(!tm||(st&&doneIds.has(r.props?.[st.id]))||tasks.some(t=>t.r===r))return;
       const wo=who&&(who.options||[]).find(o=>o.id===r.props?.[who.id]);teamTasks.push({r,d,st,doneOpt,due:due&&r.props?.[due.id]||"",team:page(tm).title,wo:wo?wo.name.split(" ")[0]:""});});});
@@ -2371,7 +2372,7 @@ function panelView(){
   const metasDbs=dbs.filter(d=>d.tpl==="metas"),taskDbs=dbs.filter(d=>d.tpl==="tarefas");
   const psc=getScope("panel"),ptm=scopeTeams(psc);
   const metas=metasDbs.flatMap(d=>kids(d.id).filter(r=>!ptm||!teamRel(d)||inScope(d,r,ptm,psc)).map(r=>({r,d}))),tasks=taskDbs.flatMap(d=>kids(d.id).filter(r=>inScope(d,r,ptm,psc)).map(r=>({r,d})));
-  const open=tasks.filter(t=>!isDone(t.d,t.r)),dueOf=(d,r)=>{const dp=P(d,p=>p.type==="date");return dp&&r.props?.[dp.id]||"";};
+  const open=tasks.filter(t=>!isDone(t.d,t.r)),dueOf=(d,r)=>{const dp=dueProp(d);return dp&&r.props?.[dp.id]||"";};
   const late=open.filter(t=>{const x=dueOf(t.d,t.r);return x&&x<today;});
   const progress=({r,d})=>{
     const a=P(d,p=>p.type==="number"&&norm(p.name)==="atual"),t=P(d,p=>p.type==="number"&&norm(p.name)==="alvo"),av=a&&r.props?.[a.id],tv=t&&r.props?.[t.id];
@@ -2497,7 +2498,7 @@ function dashTip(text,e){let t=$("#dtip");if(!text){if(t)t.hidden=true;return;}
   t.textContent=text;t.hidden=false;const w=t.offsetWidth,x=Math.min(window.innerWidth-w-8,Math.max(8,e.clientX+12));t.style.left=x+"px";t.style.top=Math.max(8,e.clientY-34)+"px";}
 
 /* ============ aviso de versão nova ============ */
-const BUILD="1795096563";let newer=false;
+const BUILD="1795097325";let newer=false;
 async function checkBuild(){if(newer||!/^https?:/.test(location.protocol))return;
   try{const r=await fetch("version.txt?"+Date.now(),{cache:"no-store"});if(!r.ok)return;const v=(await r.text()).trim();
     if(v&&v!==BUILD){newer=true;const t=$("#toast");clearTimeout(toastT);t.textContent="";t.append("Há uma versão nova do workspace. ",el("button",{style:{color:"var(--mint)","font-weight":"600","margin-left":"8px"},onclick:()=>location.reload()},"Atualizar"));t.hidden=false;}}catch(_){}}
