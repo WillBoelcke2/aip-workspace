@@ -249,3 +249,13 @@ Arraste a página pelo nome e solte acima ou abaixo de outra para reordenar (uma
 **Ctrl+Z** desfaz a última alteração feita por você nesta sessão: texto digitado, bloco apagado ou movido, campo de uma base, página enviada para a lixeira, página movida. **Ctrl+Shift+Z** (ou Ctrl+Y) refaz. O histórico vale enquanto a aba estiver aberta; para voltar mais longe, use o histórico de versões da página. Dentro de um campo de busca ou de formulário, o Ctrl+Z é o do próprio campo.
 
 **Ctrl+A** dentro de um bloco seleciona o texto do bloco; apertando de novo, seleciona a página inteira. Com tudo selecionado, Ctrl+C copia o texto, Ctrl+X recorta e Delete apaga os blocos (Ctrl+Z traz de volta).
+
+## Importar arquivos de outros sistemas
+
+No menu da conta, **Importar arquivo (JSON ou CSV)** aceita três coisas:
+
+- um backup do próprio workspace (substitui os itens com o mesmo identificador);
+- um **JSON de outro sistema** que contenha uma lista de itens, inclusive a resposta da API do Notion: cada lista vira uma base, e cada campo vira uma coluna;
+- uma **planilha exportada em CSV** (separada por vírgula, ponto e vírgula ou tabulação), com o cabeçalho na primeira linha.
+
+Os tipos das colunas são detectados sozinhos (número, data, link, caixa de seleção, seleção, status, texto) e podem ser ajustados depois. A base entra dentro da página que estiver aberta, com o mesmo acesso dela, ou na raiz se você estiver em outro lugar. Cada tabela entra com até 3.000 itens. Ctrl+Z logo em seguida desfaz a importação. Não importe dados de pacientes.

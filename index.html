@@ -757,7 +757,7 @@ button.h2link{font:inherit;font-size:13px}
 <div id="search" hidden></div>
 <div id="toast" hidden role="status"></div>
 <div id="gate" hidden></div>
-<input type="file" id="imp-file" accept="application/json,.json" hidden>
+<input type="file" id="imp-file" accept="application/json,.json,text/csv,.csv,.tsv" hidden>
 <input type="file" id="up-file" hidden>
 
 <script>
@@ -2668,7 +2668,7 @@ function dashTip(text,e){let t=$("#dtip");if(!text){if(t)t.hidden=true;return;}
   t.textContent=text;t.hidden=false;const w=t.offsetWidth,x=Math.min(window.innerWidth-w-8,Math.max(8,e.clientX+12));t.style.left=x+"px";t.style.top=Math.max(8,e.clientY-34)+"px";}
 
 /* ============ aviso de versão nova ============ */
-const BUILD="1795437900";let newer=false;
+const BUILD="1795466499";let newer=false;
 async function checkBuild(){if(newer||!/^https?:/.test(location.protocol))return;
   try{const r=await fetch("version.txt?"+Date.now(),{cache:"no-store"});if(!r.ok)return;const v=(await r.text()).trim();
     if(v&&v!==BUILD){newer=true;const t=$("#toast");clearTimeout(toastT);t.textContent="";t.append("Há uma versão nova do workspace. ",el("button",{style:{color:"var(--mint)","font-weight":"600","margin-left":"8px"},onclick:()=>location.reload()},"Atualizar"));t.hidden=false;}}catch(_){}}
@@ -2691,7 +2691,7 @@ function accountMenu(anchor){
     mi("Lixeira","trash",()=>trashPop(anchor)),el("hr"),
     S.roles&&S.admin&&mi("Pessoas e acessos","lock",()=>peoplePop(anchor)),
     mi("Exportar backup (JSON)","page",exportData),
-    mi("Importar JSON","plus",()=>$("#imp-file").click()),
+    mi("Importar arquivo (JSON ou CSV)","plus",()=>$("#imp-file").click()),
     el("hr"),mi("Sair","x",()=>{G.token=null;G.exp=0;G.cal={};try{sessionStorage.removeItem("aip-g");}catch(_){}auth.signOut();})]);
 }
 async function peoplePop(anchor){
@@ -2732,15 +2732,83 @@ function exportData(){
   document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);toast("Backup baixado");
 }
 $("#imp-file").addEventListener("change",async e=>{
-  const f=e.target.files[0];e.target.value="";if(!f)return;let list;
-  try{list=JSON.parse(await f.text());}catch(_){return toast("O arquivo não é um JSON válido.");}
-  list=(Array.isArray(list)?list:[]).filter(p=>p&&typeof p.id==="string"&&/^[\w-]{1,60}$/.test(p.id));
-  if(!list.length)return toast("O arquivo não contém páginas do workspace.");
+  const f=e.target.files[0];e.target.value="";if(!f)return;let list,src;const txt=(await f.text()).replace(/^\uFEFF/,""),nm=f.name.replace(/\.[a-z0-9]+$/i,"");
+  if(/\.(csv|tsv)$/i.test(f.name))return importTables(csvTables(txt,nm));
+  try{src=JSON.parse(txt);}catch(_){const t=csvTables(txt,nm);if(t.length)return importTables(t);return toast("O arquivo não é um JSON nem uma planilha CSV válida.");}
+  list=(Array.isArray(src)?src:[]).filter(p=>p&&typeof p.id==="string"&&/^[\w-]{1,60}$/.test(p.id)&&["page","db","cal"].includes(p.kind));
+  if(!list.length)return importTables(foreignTables(src,nm));
   const same=list.filter(p=>S.pages.has(p.id)).length;
   pop($(".side-foot"),[el("div",{class:"field"},el("b",null,`Importar ${list.length} ${list.length===1?"página":"páginas e itens"}?`),
       el("span",{style:{color:"var(--muted)","font-size":"13px"}},same?`${same} já existem aqui e serão substituídos pelo conteúdo do arquivo.`:"Nada do que já existe será alterado.")),
     el("div",{class:"field"},el("button",{class:"btn pri",onclick:()=>{closePop();list.forEach(p=>{S.pages.set(p.id,p);queue(p.id,true);});route();toast("Importação concluída");}},"Importar"))],{focus:"x-none"});
 });
+// ---- importação de arquivos de fora (JSON de outros sistemas, API do Notion, CSV de planilha) ----
+function csvTables(txt,name){
+  const head=txt.split(/\r?\n/,1)[0]||"",sep=[";","\t",","].map(c=>[c,head.split(c).length]).sort((a,b)=>b[1]-a[1])[0][0];
+  const rows=[];let row=[],cur="",q=false;
+  for(let i=0;i<txt.length;i++){const c=txt[i];
+    if(q){if(c==='"'){if(txt[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=c;}
+    else if(c==='"')q=true;else if(c===sep){row.push(cur);cur="";}
+    else if(c==="\n"||c==="\r"){if(c==="\r"&&txt[i+1]==="\n")i++;row.push(cur);cur="";rows.push(row);row=[];}
+    else cur+=c;}
+  if(cur!==""||row.length){row.push(cur);rows.push(row);}
+  const data=rows.filter(r=>r.some(c=>c.trim()!==""));if(data.length<2||data[0].length<2)return [];
+  const hd=data[0].map((h,i)=>h.trim()||"Coluna "+(i+1));
+  return [{name,rows:data.slice(1).map(r=>{const o={};hd.forEach((h,i)=>{if(r[i]!=null&&r[i].trim()!=="")o[h]=r[i].trim();});return o;})}];
+}
+function notionVal(v){
+  if(!v||typeof v!=="object"||!v.type||!(v.type in v))return v;const x=v[v.type],txt=a=>Array.isArray(a)?a.map(t=>t.plain_text||t.text?.content||"").join(""):"";
+  switch(v.type){case"title":case"rich_text":return txt(x);case"select":case"status":return x?x.name:"";case"multi_select":return (x||[]).map(o=>o.name);
+    case"date":return x?x.start:"";case"people":return (x||[]).map(o=>o.name||o.id).join(", ");case"relation":return (x||[]).map(o=>o.id).join(", ");
+    case"files":return (x||[]).map(o=>o.name).join(", ");case"formula":case"rollup":return x&&typeof x==="object"?(x[x.type]??""):x;
+    case"created_by":case"last_edited_by":return x?x.name||"":"";default:return x;}
+}
+function foreignTables(src,name){
+  const out=[],isObjs=a=>Array.isArray(a)&&a.length&&a.filter(x=>x&&typeof x==="object"&&!Array.isArray(x)).length>=a.length*.8;
+  const flat=o=>{const base=o.properties&&typeof o.properties==="object"&&!Array.isArray(o.properties)?o.properties:o,r={};
+    Object.entries(base).forEach(([k,v])=>{v=notionVal(v);
+      if(v&&typeof v==="object"&&!Array.isArray(v)){const ks=Object.entries(v);if(ks.length<=6&&ks.every(([,x])=>x==null||typeof x!=="object"))ks.forEach(([k2,x])=>{r[k+" · "+k2]=x;});else r[k]=JSON.stringify(v);}
+      else r[k]=v;});
+    return r;};
+  const walk=(v,nm,dep)=>{if(dep>4||v==null||typeof v!=="object")return;
+    if(Array.isArray(v)){if(isObjs(v))out.push({name:nm,rows:v.filter(x=>x&&typeof x==="object"&&!Array.isArray(x)).map(flat)});return;}
+    Object.entries(v).forEach(([k,x])=>walk(x,/^(results|data|items|rows|records|values)$/i.test(k)?nm:k,dep+1));};
+  walk(src,name,0);return out.slice(0,12);
+}
+function tableDocs(t,parent,order){
+  const rows=t.rows.slice(0,3000),keys=[];rows.forEach(r=>Object.keys(r).forEach(k=>{if(!keys.includes(k))keys.push(k);}));if(!keys.length||!rows.length)return [];
+  const vals=k=>rows.map(r=>r[k]).filter(v=>v!=null&&v!==""&&!(Array.isArray(v)&&!v.length)),str=v=>Array.isArray(v)?v.join(", "):typeof v==="object"?JSON.stringify(v):String(v);
+  const toIso=v=>{const x=String(v).trim();let m=x.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return m[0];m=x.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);return m?`${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`:"";};
+  const isNum=v=>typeof v==="number"||(typeof v==="string"&&/^-?\d+([.,]\d+)?$/.test(v.trim())),toNum=v=>typeof v==="number"?v:Number(String(v).trim().replace(",","."));
+  const tk=keys.find(k=>/^(name|nome|title|t[ií]tulo|tarefa|projeto|assunto|empresa|cliente)$/i.test(k.trim()))||keys.find(k=>{const v=vals(k);return v.length&&v.every(x=>typeof x==="string")&&new Set(v).size>v.length*.7;})||keys[0];
+  const used=new Set(["title"]),pid=k=>{let b=norm(k).replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,20)||"c",id=b,n=2;while(used.has(id))id=b+"-"+n++;used.add(id);return id;};
+  const props=[{id:"title",name:tk,type:"title"}],conv=[];
+  keys.filter(k=>k!==tk).forEach(k=>{const v=vals(k),id=pid(k),p={id,name:k.slice(0,60),type:"text"};let f=x=>str(x);
+    if(v.length){const ss=v.map(str),dist=[...new Set(v.flatMap(x=>Array.isArray(x)?x.map(String):[str(x)]))];
+      if(v.every(x=>typeof x==="boolean"||/^(true|false|sim|n[aã]o)$/i.test(String(x)))){p.type="checkbox";f=x=>x===true||/^(true|sim)$/i.test(String(x));}
+      else if(v.every(isNum)){p.type="number";f=toNum;}
+      else if(v.every(x=>typeof x==="string"&&toIso(x))){p.type="date";f=toIso;}
+      else if(v.every(x=>typeof x==="string"&&/^https?:\/\/\S+$/.test(x.trim()))){p.type="url";f=x=>x.trim();}
+      else if(dist.length<=14&&dist.every(x=>x.length<=40)&&(v.some(Array.isArray)||(rows.length>=4&&v.length>=3&&dist.length<=Math.max(2,v.length*.6)))){
+        p.type=v.some(Array.isArray)?"multi":/^(status|situa[cç][aã]o|etapa|fase|est[aá]gio)$/i.test(k.trim())?"status":"select";
+        p.options=dist.map((n,i)=>({id:id+"-"+i,name:n,color:COLORS[i%COLORS.length]}));const oi=n=>p.options.find(o=>o.name===String(n)).id;
+        f=p.type==="multi"?x=>(Array.isArray(x)?x:[x]).map(oi):x=>oi(str(x));}
+      else if(ss.reduce((a,x)=>a+x.length,0)/ss.length>60)p.long=true;}
+    props.push(p);conv.push([k,id,f]);});
+  const did=rid(),db={id:did,kind:"db",title:t.name||"Importação",parent:parent||null,order,blocks:[],schema:{props},views:[{id:rid(),name:"Tabela",type:"table"}]};
+  const grp=props.find(p=>p.type==="status")||props.find(p=>p.type==="select");if(grp)db.views.push({id:rid(),name:"Quadro",type:"board",group:grp.id});
+  return [db,...rows.map((r,i)=>{const pr={};conv.forEach(([k,id,f])=>{const x=r[k];if(x!=null&&x!==""&&!(Array.isArray(x)&&!x.length))pr[id]=f(x);});return {id:rid(),kind:"page",title:str(r[tk]??"").slice(0,300)||"Sem título",parent:did,order:i+1,props:pr,blocks:[]};})];
+}
+function importTables(tabs){
+  tabs=(tabs||[]).filter(t=>t.rows&&t.rows.length);if(!tabs.length)return toast("Não encontrei nenhuma tabela neste arquivo. Ele precisa ter uma lista de itens (JSON) ou linhas com cabeçalho (CSV).");
+  const cur=page(S.cur),dest=cur&&cur.kind==="page"&&!isRow(cur)&&alive(cur)?cur:null,cut=tabs.some(t=>t.rows.length>3000);
+  pop($(".side-foot"),[el("div",{class:"field"},el("b",null,tabs.length===1?`Criar a base “${tabs[0].name}” com ${Math.min(3000,tabs[0].rows.length)} itens?`:`Criar ${tabs.length} bases a partir deste arquivo?`),
+      tabs.length>1&&el("span",{style:{"font-size":"13px"}},tabs.map(t=>`${t.name} (${Math.min(3000,t.rows.length)})`).join(", ")),
+      el("span",{style:{color:"var(--muted)","font-size":"13px"}},(dest?`Entra dentro de “${dest.title||"Sem título"}”`+(dest.lock?", com o mesmo acesso restrito.":"."):"Entra na raiz do workspace, visível para todo o time.")+" Os tipos das colunas são detectados automaticamente e podem ser ajustados depois."+(cut?" Só os primeiros 3.000 itens de cada tabela entram.":""))),
+    el("div",{class:"field"},el("button",{class:"btn pri",onclick:()=>{closePop();let o=((kids(dest?dest.id:null).at(-1)||{}).order||0),first=null,n=0;
+      tabs.forEach(t=>{const docs=tableDocs(t,dest?dest.id:null,++o);docs.forEach(save);if(docs.length){first=first||docs[0].id;n+=docs.length-1;}});
+      if(dest)S.open.add(dest.id);renderAll();if(first)location.hash="p-"+first;toast(`Importação concluída: ${n} itens. Ctrl+Z desfaz.`);}},"Importar"))],{focus:"x-none"});
+}
 function gate(kind){
   const g=$("#gate");g.hidden=false;g.textContent="";const box=el("div",{class:"gate-box"},logo());
   if(kind==="setup")box.append(el("h1",null,"Falta conectar o Firebase"),el("p",null,"Preencha o arquivo config.js com os dados do projeto Firebase. O passo a passo está no arquivo GUIA.md."));
