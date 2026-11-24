@@ -2,7 +2,7 @@
 // Depois que a ata entra, o robô compara a reunião com as tarefas abertas e propõe o que mudou:
 // concluir, adiar, repassar, juntar repetidas, agrupar microtarefas e apontar tarefas vagas.
 // Certeza alta e trecho conferido na ata: aplica sozinho. Certeza média: vira sugestão para o líder da equipe.
-const { norm } = require("./core");
+const { norm, pickTeam } = require("./core");
 const rid = () => Math.random().toString(36).slice(2, 10);
 const esc = t => String(t ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const fmtDate = v => v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v.split("-").reverse().join("/") : "";
@@ -91,6 +91,9 @@ function reviewer(pages, members) {
     const f = F(); if (!f) return { docs: [], rev: null };
     const auto = !opt || opt.auto !== false, now = Date.now(), text = flat(plainMd(md)), byKey = new Map(cands.map(c => [c.key, c])), seen = new Set(), touched = new Set(), changed = new Map(), itens = [];
     const tm = teamOf(meet.title), ld = leaderOf(tm), get = id => changed.get(id) || page(id);
+    // quem decide cada item: o líder (ou revisor) da equipe da tarefa; sem equipe na tarefa, a equipe do responsável entre os participantes
+    const mp = f.tdb && (props(f.tdb).find(p => p.key === "members") || props(f.tdb).find(p => p.type === "multi")), ppm = props(f.mdb).find(p => p.type === "multi"), guests = ((meet.props || {})[ppm && ppm.id] || []).map(id => optName(ppm, id)).filter(Boolean);
+    const decider = id => { const r = get(id); if (!r || !f.tdb) return ld; const tid = f.tr && ((r.props || {})[f.tr.id] || [])[0], t = (tid && page(tid)) || pickTeam(kids(f.tdb.id), mp, optName(f.wp, (r.props || {})[f.wp && f.wp.id]), guests); return leaderOf(t) || ld; };
     const edit = id => { if (!changed.has(id)) { const r = page(id); changed.set(id, Object.assign({}, r, { props: Object.assign({}, r.props), botlog: (r.botlog || []).slice() })); } return changed.get(id); };
     ((out && out.itens) || []).forEach(x => {
       if (!x || !TIPOS.includes(x.tipo)) return;
@@ -119,6 +122,7 @@ function reviewer(pages, members) {
       } else if (x.tipo === "indefinida") {
         if (!t0.nova || conf < SUGERE) return; it.tarefas = [t0.id]; it.titulos = [t0.titulo]; it.estado = "aviso";
       }
+      const dc = decider(it.tarefas[it.tipo === "juntar" ? 1 : 0]); if (dc) { it.decide = dc.email || ""; it.decideNome = dc.name || ""; }
       itens.push(it);
     });
     const rev = { ts: now, modelo: (opt && opt.model) || "", equipe: tm ? tm.title || "" : "", lider: ld ? ld.email : "", liderNome: ld ? ld.name : "", lidas: cands.length, itens };

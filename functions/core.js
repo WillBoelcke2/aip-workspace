@@ -29,6 +29,15 @@ function due(text, base) {
   if (/\bamanha\b/.test(t)) return add(1); if (/\bhoje\b/.test(t)) return add(0); return add(7);
 }
 
+// equipe de uma pessoa numa reunião sem equipe no título: entre as equipes de que ela faz parte (fora a Liderança),
+// fica a que tem mais participantes da reunião; no empate, a menor
+function pickTeam(teams, mprop, ownerName, guestNames) {
+  if (!mprop || !ownerName) return null;
+  const names = t => ((t.props || {})[mprop.id] || []).map(id => norm(((mprop.options || []).find(o => o.id === id) || {}).name || "")), o = norm(ownerName), gs = (guestNames || []).map(norm);
+  let c = teams.filter(t => names(t).includes(o)); const noLead = c.filter(t => norm(t.title) !== "lideranca"); if (noLead.length) c = noLead;
+  return c.map(t => { const n = names(t); return { t, hit: gs.filter(g => n.includes(g)).length, size: n.length }; }).sort((a, b) => b.hit - a.hit || a.size - b.size).map(x => x.t)[0] || null;
+}
+
 // pages: Map(id -> doc); members: [{id: email, name}]
 function workspace(pages, members) {
   const page = id => pages.get(id);
@@ -102,7 +111,8 @@ function workspace(pages, members) {
         if (ap && help.length) r.props[ap.id] = help.join(", ");
         if (du) r.props[du.id] = due(x.title + " " + x.desc, a.date);
         if (st && st.options && st.options[0]) r.props[st.id] = st.options[0].id;
-        if (rel) r.props[rel.id] = [mid]; if (tr && tm) r.props[tr.id] = [tm.id];
+        const tm2 = tm || (tdb && o ? pickTeam(kids(tdb.id), props(tdb).find(p => p.key === "members") || props(tdb).find(p => p.type === "multi"), o.name, a.guests.map(g => (who(g.name, a.guests, opts) || {}).name || g.name)) : null);
+        if (rel) r.props[rel.id] = [mid]; if (tr && tm2) r.props[tr.id] = [tm2.id];
         out.push(r); novas++;
       });
     }
@@ -111,4 +121,4 @@ function workspace(pages, members) {
   }
   return { build, seen, meetDb };
 }
-module.exports = { parse, workspace, ataId, norm };
+module.exports = { parse, workspace, ataId, norm, pickTeam };

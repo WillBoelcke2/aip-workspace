@@ -2280,7 +2280,7 @@ const seenKey=()=>"aip-seen-"+(me?me.email:"");
 function notices(){
   if(!me)return[];const out=[],lim=Date.now()-30*864e5,mt=myTeams().map(x=>x.id),tdb=teamDb();
   S.pages.forEach(p=>{if(!alive(p))return;
-    if(p.rev&&p.rev.lider===me.email){const n=(p.rev.itens||[]).filter(i=>i.estado==="sugerida").length;if(n&&p.rev.ts>lim)out.push({ts:p.rev.ts,p,who:"Bot de atas",text:"tem "+(n===1?"1 sugestão":n+" sugestões")+" para você decidir em "+(p.title||"Sem título"),sub:"Aprovar ou rejeitar na página da reunião"});}
+    if(p.rev&&(p.rev.itens||[]).length){const n=p.rev.itens.filter(i=>i.estado==="sugerida"&&(i.decide?i.decide===me.email:p.rev.lider===me.email)).length;if(n&&p.rev.ts>lim)out.push({ts:p.rev.ts,p,who:"Bot de atas",text:"tem "+(n===1?"1 sugestão":n+" sugestões")+" para você decidir em "+(p.title||"Sem título"),sub:"Aprovar ou rejeitar na página da reunião"});}
     if(p.ask&&p.ask.ts>lim){const d=page(p.parent),pr=d&&d.kind==="db"&&props(d).find(x=>x.type==="person"),mine=pr&&whoAmI(pr.options||[]);if(mine&&p.props?.[pr.id]===mine.id)out.push({ts:p.ask.ts,p,who:"Bot de atas",text:"pergunta se esta tarefa ainda vale: "+(p.title||"Sem título"),sub:"Sem alteração há "+(p.ask.dias||21)+" dias"});}
     (p.comments||[]).forEach(c=>{if((c.at||[]).includes(me.email)&&c.by!==me.email&&c.ts>lim)out.push({ts:c.ts,p,who:c.name||"Alguém",text:"citou você em "+(p.title||"Sem título"),sub:c.text});});
     if(p.asg){const d=page(p.parent);if(d&&d.kind==="db")for(const pid in p.asg){const a=p.asg[pid],pr=props(d).find(x=>x.id===pid);if(!pr||!a||a.by===me.email||a.ts<lim)continue;
@@ -2322,7 +2322,7 @@ function revUndo(m,it){
 }
 function revPanel(m){
   const rv=m&&m.rev;if(!rv||!Array.isArray(rv.itens))return null;
-  const can=!S.ro&&me&&(S.admin||(rv.lider&&rv.lider===me.email)),box=el("section",{class:"revp","aria-label":"Revisão do bot de atas"});
+  const top=!S.ro&&me&&(S.admin||(rv.lider&&rv.lider===me.email)),mayI=it=>!!(top||(!S.ro&&me&&it.decide&&it.decide===me.email)),box=el("section",{class:"revp","aria-label":"Revisão do bot de atas"});
   const redraw=()=>{save(m);refreshDb();if(S.cur===m.id)renderMain(true);else if(!S.peek){const n=revPanel(m);if(n)box.replaceWith(n);}};
   const lk=(id,t)=>{const p=page(id);return p&&!p.trashed?el("a",{href:"#p-"+id,onclick:e=>{e.preventDefault();openPeek(id);}},t||p.title||"Sem título"):el("span",{class:"gone"},t||"tarefa removida");};
   const what=it=>{const a=lk(it.tarefas[0],it.titulos&&it.titulos[0]);
@@ -2333,7 +2333,7 @@ function revPanel(m){
   const row=(it,btns)=>el("div",{class:"revi s-"+it.estado},el("div",{class:"rw"},what(it)),
     it.trecho&&el("blockquote",null,"“"+it.trecho+"”",!it.conferido&&el("small",null," (não localizei este trecho exato na ata)")),
     it.motivo&&it.tipo!=="concluir"&&el("div",{class:"rm"},it.motivo),
-    el("div",{class:"rf"},el("span",null,it.tipo==="indefinida"?"":"certeza "+Math.round((it.certeza||0)*100)+"%"),btns));
+    el("div",{class:"rf"},el("span",null,(it.tipo==="indefinida"?"":"certeza "+Math.round((it.certeza||0)*100)+"%")+(it.decideNome&&it.decideNome!==rv.liderNome?(it.tipo==="indefinida"?"":" · ")+"decide: "+it.decideNome:"")),btns));
   const B=(t,fn,pri)=>el("button",{class:"btn"+(pri?" pri":""),onclick:fn},t);
   const dec=(it,st)=>{it.estado=st;it.dts=Date.now();it.por=me.email;redraw();};
   const grp=(title,list,fn)=>list.length?[el("h4",null,title+" ("+list.length+")"),list.map(fn)]:null;
@@ -2342,11 +2342,11 @@ function revPanel(m){
     el("small",null,(rv.lidas?rv.lidas+" tarefas abertas comparadas":"")+(rv.liderNome?" · decide: "+rv.liderNome:"")+(rv.ts?" · "+ago(rv.ts):""))));
   if(!I.length)box.append(el("p",{class:"none"},"Nenhuma tarefa aberta precisou de mudança a partir desta reunião."));
   box.append(el("div",null,
-    grp("Aguardando decisão",sug,it=>row(it,can?[B("Aprovar",()=>{if(revApply(m,it))dec(it,"aprovada");},true),B("Rejeitar",()=>dec(it,"rejeitada"))]:null)),
-    sug.length&&!can?el("p",{class:"rn"},"Só "+(rv.liderNome||"o líder da equipe")+" ou um administrador aprova ou rejeita."):null,
-    grp("Aplicadas pelo bot",apl,it=>row(it,can?[B("Desfazer",()=>{if(revUndo(m,it))dec(it,"desfeita");})]:null)),
-    grp("Para definir",av,it=>row(it,can?[B("Dispensar",()=>dec(it,"rejeitada"))]:null)),
-    grp("Já decididas",fin,it=>row(it,[el("em",null,{aprovada:"aprovada",rejeitada:"rejeitada",desfeita:"desfeita"}[it.estado]),can&&it.estado==="aprovada"&&it.antes?B("Desfazer",()=>{if(revUndo(m,it))dec(it,"desfeita");}):null]))));
+    grp("Aguardando decisão",sug,it=>row(it,mayI(it)?[B("Aprovar",()=>{if(revApply(m,it))dec(it,"aprovada");},true),B("Rejeitar",()=>dec(it,"rejeitada"))]:null)),
+    sug.some(it=>!mayI(it))?el("p",{class:"rn"},"Cada sugestão é decidida pelo líder da equipe da tarefa ou por um administrador."):null,
+    grp("Aplicadas pelo bot",apl,it=>row(it,mayI(it)?[B("Desfazer",()=>{if(revUndo(m,it))dec(it,"desfeita");})]:null)),
+    grp("Para definir",av,it=>row(it,mayI(it)?[B("Dispensar",()=>dec(it,"rejeitada"))]:null)),
+    grp("Já decididas",fin,it=>row(it,[el("em",null,{aprovada:"aprovada",rejeitada:"rejeitada",desfeita:"desfeita"}[it.estado]),mayI(it)&&it.estado==="aprovada"&&it.antes?B("Desfazer",()=>{if(revUndo(m,it))dec(it,"desfeita");}):null]))));
   return box;
 }
 function botLogPanel(t){
@@ -2739,7 +2739,7 @@ function dashTip(text,e){let t=$("#dtip");if(!text){if(t)t.hidden=true;return;}
   t.textContent=text;t.hidden=false;const w=t.offsetWidth,x=Math.min(window.innerWidth-w-8,Math.max(8,e.clientX+12));t.style.left=x+"px";t.style.top=Math.max(8,e.clientY-34)+"px";}
 
 /* ============ aviso de versão nova ============ */
-const BUILD="1795528865";let newer=false;
+const BUILD="1795531504";let newer=false;
 async function checkBuild(){if(newer||!/^https?:/.test(location.protocol))return;
   try{const r=await fetch("version.txt?"+Date.now(),{cache:"no-store"});if(!r.ok)return;const v=(await r.text()).trim();
     if(v&&v!==BUILD){newer=true;const t=$("#toast");clearTimeout(toastT);t.textContent="";t.append("Há uma versão nova do workspace. ",el("button",{style:{color:"var(--mint)","font-weight":"600","margin-left":"8px"},onclick:()=>location.reload()},"Atualizar"));t.hidden=false;}}catch(_){}}
