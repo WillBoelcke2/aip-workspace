@@ -3,7 +3,7 @@ const rid = () => Math.random().toString(36).slice(2, 10);
 const esc = t => String(t ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const when = ts => new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(ts)).replace(",", " às");
 const DEFS = [
-  ["atas", "Atas de reunião", "todo dia às 6h00", b => [b.atas + (b.atas === 1 ? " ata importada" : " atas importadas") + ", " + b.tarefas + (b.tarefas === 1 ? " tarefa criada" : " tarefas criadas"), b.pessoas + " pessoas lidas"]],
+  ["atas", "Atas de reunião", "todo dia às 6h00", b => [b.atas + (b.atas === 1 ? " ata importada" : " atas importadas") + ", " + b.tarefas + (b.tarefas === 1 ? " tarefa criada" : " tarefas criadas"), b.pessoas + " pessoas lidas" + (b.achados != null ? ", " + b.achados + " anotações do Gemini encontradas nos últimos 3 dias" : ""), Object.keys(b.pulos || {}).length ? "Não importadas: " + Object.entries(b.pulos).map(([k, n]) => n + " " + k).join("; ") : "", b.leitura ? "Falha de leitura: " + b.leitura : ""]],
   ["seed", "Radar Seed", "todo dia às 6h20", b => [b.conversas + " conversas lidas, " + b.atualizados + (b.atualizados === 1 ? " fundo atualizado" : " fundos atualizados") + ", " + b.novos + (b.novos === 1 ? " novo" : " novos"), b.modelo ? "Modelo: " + b.modelo : ""]],
   ["agenda", "Agenda", "de hora em hora, das 6h às 21h", b => [b.pessoas + " pessoas atualizadas, " + b.eventos + " eventos no período"]],
   ["backup", "Backup", "todo dia às 3h10", b => [b.docs + " documentos guardados (" + b.kb + " KB)", "Cópias guardadas: " + b.guardados + " (últimos 30 dias)"]]

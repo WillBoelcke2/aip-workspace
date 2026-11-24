@@ -42,7 +42,7 @@ exports.atasBot = onSchedule({ schedule: "0 6 * * *", timeZone: "America/Sao_Pau
   const [ps, ms] = await Promise.all([db.collection("pages").get(), db.collection("members").get()]);
   const pages = new Map(ps.docs.map(d => [d.id, Object.assign({ id: d.id }, d.data())]));
   const members = ms.docs.map(d => Object.assign({ id: d.id }, d.data())).filter(m => m.id.endsWith("@" + DOMAIN));
-  const ws = workspace(pages, members), stat = { ts: Date.now(), atas: 0, tarefas: 0, pessoas: 0, erros: {} };
+  const ws = workspace(pages, members), stat = { ts: Date.now(), atas: 0, tarefas: 0, pessoas: 0, achados: 0, pulos: {}, erros: {} }, tried = new Set(), pulo = k => { stat.pulos[k] = (stat.pulos[k] || 0) + 1; };
   if (!ws.meetDb()) { stat.erro = "Base Reuniões não encontrada"; await report(db, "atas", stat); logger.warn("atasBot", stat); return; }
   const sa = (await auth.getCredentials()).client_email;
   const since = new Date(Date.now() - 3 * 864e5).toISOString();
@@ -54,12 +54,14 @@ exports.atasBot = onSchedule({ schedule: "0 6 * * *", timeZone: "America/Sao_Pau
       const lj = await lr.json(); if (!lr.ok) throw new Error((lj.error && lj.error.message) || "drive " + lr.status);
       stat.pessoas++;
       for (const f of lj.files || []) {
-        if (!/gemini/i.test(f.name) || ws.seen(f.id)) continue;
+        if (!/gemini/i.test(f.name) || tried.has(f.id)) continue;
+        tried.add(f.id); stat.achados++;
+        if (ws.seen(f.id)) { pulo("já importadas"); continue; }
         const er = await gfetch("https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(f.id) + "/export?mimeType=text/markdown", { headers: H });
-        if (!er.ok) continue;
+        if (!er.ok) { pulo("não consegui ler o documento"); if (!stat.leitura) stat.leitura = (f.name || "").slice(0, 60) + ": " + (await er.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 140); tried.delete(f.id); continue; }
         const owner = (f.owners && f.owners[0] && f.owners[0].emailAddress) || m.id;
-        const { docs } = ws.build(f, await er.text(), owner, "bot");
-        if (!docs.length) continue;
+        const { docs, why } = ws.build(f, await er.text(), owner, "bot");
+        if (!docs.length) { pulo(why === "private" ? "reservadas (1:1 ou menos de 3 pessoas)" : why === "empty" ? "sem resumo nem próximas etapas" : why === "seen" ? "já importadas" : String(why)); continue; }
         const batch = db.batch(); docs.forEach(d => batch.set(db.collection("pages").doc(d.id), d)); await batch.commit();
         stat.atas++; stat.tarefas += docs.length - 1;
       }
