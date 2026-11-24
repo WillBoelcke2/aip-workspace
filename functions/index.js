@@ -13,6 +13,7 @@ const zlib = require("zlib");
 admin.initializeApp();
 const DOMAIN = "aipathology.com.br";
 const SCOPE = "https://www.googleapis.com/auth/drive.meet.readonly";
+const READ = "https://www.googleapis.com/auth/drive.readonly";
 const auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
 
 // Chamada às APIs do Google com novas tentativas quando o limite de uso momentâneo é atingido (429, 403 de "rate limit") ou o serviço oscila (5xx).
@@ -42,23 +43,27 @@ exports.atasBot = onSchedule({ schedule: "0 6 * * *", timeZone: "America/Sao_Pau
   const [ps, ms] = await Promise.all([db.collection("pages").get(), db.collection("members").get()]);
   const pages = new Map(ps.docs.map(d => [d.id, Object.assign({ id: d.id }, d.data())]));
   const members = ms.docs.map(d => Object.assign({ id: d.id }, d.data())).filter(m => m.id.endsWith("@" + DOMAIN));
-  const ws = workspace(pages, members), stat = { ts: Date.now(), atas: 0, tarefas: 0, pessoas: 0, achados: 0, pulos: {}, erros: {} }, tried = new Set(), pulo = k => { stat.pulos[k] = (stat.pulos[k] || 0) + 1; };
+  const ws = workspace(pages, members), stat = { ts: Date.now(), atas: 0, tarefas: 0, pessoas: 0, achados: 0, pulos: {}, erros: {} }, tried = new Set(), found = new Set(), failed = new Map(), pulo = k => { stat.pulos[k] = (stat.pulos[k] || 0) + 1; };
   if (!ws.meetDb()) { stat.erro = "Base Reuniões não encontrada"; await report(db, "atas", stat); logger.warn("atasBot", stat); return; }
   const sa = (await auth.getCredentials()).client_email;
   const since = new Date(Date.now() - 3 * 864e5).toISOString();
   const q = "mimeType='application/vnd.google-apps.document' and trashed=false and modifiedTime>'" + since + "' and name contains 'Gemini'";
   for (const m of members) {
     try {
-      const tk = await userToken(sa, m.id), H = { Authorization: "Bearer " + tk };
+      const tk = await userToken(sa, m.id), H = { Authorization: "Bearer " + tk }; let rd;
       const lr = await gfetch("https://www.googleapis.com/drive/v3/files?pageSize=50&orderBy=modifiedTime&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=" + encodeURIComponent("files(id,name,modifiedTime,owners(emailAddress))") + "&q=" + encodeURIComponent(q), { headers: H });
       const lj = await lr.json(); if (!lr.ok) throw new Error((lj.error && lj.error.message) || "drive " + lr.status);
       stat.pessoas++;
       for (const f of lj.files || []) {
         if (!/gemini/i.test(f.name) || tried.has(f.id)) continue;
-        tried.add(f.id); stat.achados++;
-        if (ws.seen(f.id)) { pulo("já importadas"); continue; }
-        const er = await gfetch("https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(f.id) + "/export?mimeType=text/markdown", { headers: H });
-        if (!er.ok) { pulo("não consegui ler o documento"); if (!stat.leitura) stat.leitura = (f.name || "").slice(0, 60) + ": " + (await er.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 140); tried.delete(f.id); continue; }
+        found.add(f.id);
+        if (ws.seen(f.id)) { tried.add(f.id); pulo("já importadas"); continue; }
+        // a permissão estreita (arquivos do Meet) lista as anotações mas, por delegação, não deixa baixar o texto;
+        // se a leitura do Drive estiver autorizada no Admin Console, usa essa para baixar só os documentos listados aqui
+        if (rd === undefined) rd = await userToken(sa, m.id, READ).catch(() => null);
+        const er = await gfetch("https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(f.id) + "/export?mimeType=text/markdown", { headers: rd ? { Authorization: "Bearer " + rd } : H });
+        if (!er.ok) { failed.set(f.id, (f.name || "").slice(0, 60) + ": " + (await er.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 140)); continue; }
+        tried.add(f.id); failed.delete(f.id);
         const owner = (f.owners && f.owners[0] && f.owners[0].emailAddress) || m.id;
         const { docs, why } = ws.build(f, await er.text(), owner, "bot");
         if (!docs.length) { pulo(why === "private" ? "reservadas (1:1 ou menos de 3 pessoas)" : why === "empty" ? "sem resumo nem próximas etapas" : why === "seen" ? "já importadas" : String(why)); continue; }
@@ -67,6 +72,8 @@ exports.atasBot = onSchedule({ schedule: "0 6 * * *", timeZone: "America/Sao_Pau
       }
     } catch (e) { stat.erros[m.id.split("@")[0]] = String(e.message || e).slice(0, 160); }
   }
+  stat.achados = found.size;
+  if (failed.size) { stat.pulos["não consegui ler o documento"] = failed.size; stat.leitura = [...failed.values()][0]; }
   await db.collection("settings").doc("atasBot").set(stat);
   await report(db, "atas", stat);
   logger.info("atasBot", stat);
