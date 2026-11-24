@@ -582,6 +582,14 @@ td:hover .reladd,.pval .reladd,.reladd:focus-visible{opacity:1}
 .one-f.t-dark{background:var(--text);border-color:var(--text);color:#fff}.one-f.t-dark label{color:var(--mint)}.one-f.t-dark .v{font-weight:600;font-size:14.5px}
 .one-f.t-ok{background:#EFFFF8;border-color:#A8F0D0}.one-f.t-warn{background:#FFF9EA;border-color:#FFE0A3}.one-f.t-risk{background:#FFF1F3;border-color:#FFC2CC;color:#8E1230}
 .one-t{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+.revp{border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;margin:10px 0 18px;background:var(--bg);display:grid;gap:8px}
+.revp header{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;justify-content:space-between}.revp h3{margin:0;font:600 15px var(--display)}.revp header small{color:var(--muted);font-size:12px}
+.revp h4{margin:8px 0 4px;font:600 11px var(--body);letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}.revp .none,.revp .rn{margin:0;color:var(--muted);font-size:13px}
+.revi{background:var(--paper);border:1px solid var(--line);border-left:3px solid var(--line-2);border-radius:var(--r-s);padding:9px 12px;margin-bottom:6px;display:grid;gap:5px;font-size:13.5px}
+.revi.s-sugerida{border-left-color:var(--emerald)}.revi.s-aplicada{border-left-color:var(--text)}.revi.s-rejeitada,.revi.s-desfeita{opacity:.6}.revi a{color:inherit;text-decoration:underline;text-underline-offset:2px}.revi .gone{color:var(--faint);text-decoration:line-through}
+.revi blockquote,.revp .lg blockquote{margin:0;padding-left:9px;border-left:2px solid var(--line-2);color:var(--muted);font-size:12.5px}.revi .rm{color:var(--muted);font-size:12.5px}
+.revi .rf{display:flex;gap:6px;align-items:center}.revi .rf span{flex:1;color:var(--faint);font:11.5px var(--mono)}.revi .rf em{color:var(--muted);font-size:12px}
+.revp.log .lg{display:grid;gap:2px;font-size:12.5px;color:var(--muted);padding:5px 0;border-top:1px solid var(--line)}.revp.log .lg a{color:var(--text)}
 .gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
 .gcard{display:grid;gap:8px;align-content:start;text-align:left;border:1px solid var(--line);border-radius:10px;overflow:hidden;padding:0 0 12px;background:var(--bg)}.gcard:hover{border-color:var(--text)}
 .gcard>strong,.gcard>.tags{padding:0 12px}.gcard>strong.empty{color:var(--faint)}
@@ -1217,6 +1225,7 @@ function docView(p){
   const d=el("article",{class:"doc"},titleEl(p));
   const par=page(p.parent);
   if(par&&par.kind==="db")d.append(propsPanel(p,par));
+  const rvp=revPanel(p);if(rvp)d.append(rvp);const blg=botLogPanel(p);if(blg)d.append(blg);
   const host=el("div",{class:"editor"});mountEditor(host,p.id);
   const tb=tplBar(p,host);if(tb)d.append(tb);
   d.append(host,el("div",{class:"tail",onclick:()=>{const bs=p.blocks;const last=bs.at(-1);if(last&&last.t==="p"&&!last.h){focusBlock(host,last.id,"end");}else{const b={id:rid(),t:"p",h:""};bs.push(b);save(p);renderBlocks(host);focusBlock(host,b.id,0);}}}));
@@ -2271,6 +2280,8 @@ const seenKey=()=>"aip-seen-"+(me?me.email:"");
 function notices(){
   if(!me)return[];const out=[],lim=Date.now()-30*864e5,mt=myTeams().map(x=>x.id),tdb=teamDb();
   S.pages.forEach(p=>{if(!alive(p))return;
+    if(p.rev&&p.rev.lider===me.email){const n=(p.rev.itens||[]).filter(i=>i.estado==="sugerida").length;if(n&&p.rev.ts>lim)out.push({ts:p.rev.ts,p,who:"Bot de atas",text:"tem "+(n===1?"1 sugestão":n+" sugestões")+" para você decidir em "+(p.title||"Sem título"),sub:"Aprovar ou rejeitar na página da reunião"});}
+    if(p.ask&&p.ask.ts>lim){const d=page(p.parent),pr=d&&d.kind==="db"&&props(d).find(x=>x.type==="person"),mine=pr&&whoAmI(pr.options||[]);if(mine&&p.props?.[pr.id]===mine.id)out.push({ts:p.ask.ts,p,who:"Bot de atas",text:"pergunta se esta tarefa ainda vale: "+(p.title||"Sem título"),sub:"Sem alteração há "+(p.ask.dias||21)+" dias"});}
     (p.comments||[]).forEach(c=>{if((c.at||[]).includes(me.email)&&c.by!==me.email&&c.ts>lim)out.push({ts:c.ts,p,who:c.name||"Alguém",text:"citou você em "+(p.title||"Sem título"),sub:c.text});});
     if(p.asg){const d=page(p.parent);if(d&&d.kind==="db")for(const pid in p.asg){const a=p.asg[pid],pr=props(d).find(x=>x.id===pid);if(!pr||!a||a.by===me.email||a.ts<lim)continue;
       if(pr.type==="relation"){if(tdb&&pr.db===tdb.id){const hit=(Array.isArray(p.props?.[pid])?p.props[pid]:[]).find(id=>mt.includes(id));if(hit)out.push({ts:a.ts,p,who:a.name||String(a.by).split("@")[0],text:"passou para a equipe "+(page(hit).title||"")+": "+(p.title||"Sem título"),sub:d.title||""});}continue;}
@@ -2285,6 +2296,66 @@ function noticePop(anchor){
     list.length?list.slice(0,20).map(n=>el("a",{class:"nrow"+(n.ts>seen?" new":""),href:"#p-"+n.p.id,onclick:closePop},el("span",{class:"avatar"},String(n.who).charAt(0).toUpperCase()),el("span",null,el("b",null,n.who)," "+n.text,n.sub&&el("small",null,String(n.sub).slice(0,90))),el("time",null,ago(n.ts)))):el("div",{class:"none"},"Nenhum aviso. Citações e tarefas atribuídas a você aparecem aqui.")),{focus:"x-none"});
   try{localStorage.setItem(seenKey(),String(Date.now()));}catch(_){}
   const bd=$("#side .badge");if(bd)bd.remove();
+}
+/* ============ revisão das reuniões pelo bot de atas ============ */
+function revFields(){const td=taskDb(),md=meetDb();if(!td||!md)return null;const ps=props(td),st=ps.find(p=>p.type==="status");
+  return{td,md,st,wp:ps.find(p=>p.type==="person"),du:dueProp(td),rel:ps.find(p=>p.type==="relation"&&p.db===md.id),done:st&&(st.options||[]).find(o=>/conclu|feit|done/.test(norm(o.name)))};}
+function revLog(t,m,it,tipo){t.botlog=(t.botlog||[]).concat([{ts:Date.now(),meet:m.id,item:it.id,tipo,trecho:it.trecho||"",por:me?me.email:""}]).slice(-30);}
+function revApply(m,it){
+  const f=revFields();if(!f)return false;const T=it.tarefas.map(page);if(T.some(t=>!t))return toast("Uma das tarefas desta sugestão não existe mais."),false;const t=T[0];
+  if(it.tipo==="concluir"){if(!f.done)return false;it.antes={st:t.props[f.st.id]??null};t.props[f.st.id]=f.done.id;}
+  else if(it.tipo==="adiar"){it.antes={du:t.props[f.du.id]??null};t.props[f.du.id]=it.prazo;}
+  else if(it.tipo==="repassar"){it.antes={wp:t.props[f.wp.id]??null};t.props[f.wp.id]=it.quem;t.asg=Object.assign({},t.asg,{[f.wp.id]:{by:me.email,name:me.name||me.email,ts:Date.now()}});}
+  else if(it.tipo==="juntar"){const old=T[1];if(!old||!f.rel)return false;it.antes={rel:(old.props[f.rel.id]||[]).slice()};old.props[f.rel.id]=[...new Set([...(old.props[f.rel.id]||[]),m.id])];revLog(old,m,it,"juntar");save(old);t.trashed=true;}
+  else if(it.tipo==="agrupar"){it.antes={title:t.title,blocks:JSON.parse(JSON.stringify(t.blocks||[]))};const bs=(t.blocks||[]).filter(b=>b.h||b.t!=="p");
+    T.slice(1).forEach(x=>{const d=plain(((x.blocks||[]).find(b=>b.t==="p"&&b.h)||{}).h||"");bs.push({id:rid(),t:"todo",h:esc((x.title||"")+(d?": "+d:"")),c:false});x.trashed=true;save(x);});
+    if(it.antes.title&&it.antes.title!==it.titulo)bs.unshift({id:rid(),t:"todo",h:esc(it.antes.title),c:false});bs.push({id:rid(),t:"p",h:""});t.title=it.titulo||t.title;t.blocks=bs;}
+  else return false;
+  revLog(t,m,it,it.tipo);save(t);return true;
+}
+function revUndo(m,it){
+  const f=revFields();if(!f||!it.antes)return false;const T=it.tarefas.map(page),t=T[0];if(!t)return false;const back=(id,v)=>{if(v==null)delete t.props[id];else t.props[id]=v;};
+  if(it.tipo==="concluir")back(f.st.id,it.antes.st);else if(it.tipo==="adiar")back(f.du.id,it.antes.du);else if(it.tipo==="repassar")back(f.wp.id,it.antes.wp);
+  else if(it.tipo==="juntar"){const old=T[1];if(old&&f.rel){old.props[f.rel.id]=it.antes.rel||[];save(old);}delete t.trashed;}
+  else if(it.tipo==="agrupar"){t.title=it.antes.title;t.blocks=it.antes.blocks||[];T.slice(1).forEach(x=>{if(x){delete x.trashed;save(x);}});}
+  revLog(t,m,it,"desfeito");save(t);return true;
+}
+function revPanel(m){
+  const rv=m&&m.rev;if(!rv||!Array.isArray(rv.itens))return null;
+  const can=!S.ro&&me&&(S.admin||(rv.lider&&rv.lider===me.email)),box=el("section",{class:"revp","aria-label":"Revisão do bot de atas"});
+  const redraw=()=>{save(m);refreshDb();if(S.cur===m.id)renderMain(true);else if(!S.peek){const n=revPanel(m);if(n)box.replaceWith(n);}};
+  const lk=(id,t)=>{const p=page(id);return p&&!p.trashed?el("a",{href:"#p-"+id,onclick:e=>{e.preventDefault();openPeek(id);}},t||p.title||"Sem título"):el("span",{class:"gone"},t||"tarefa removida");};
+  const what=it=>{const a=lk(it.tarefas[0],it.titulos&&it.titulos[0]);
+    if(it.tipo==="concluir")return[el("b",null,"Concluir: "),a];if(it.tipo==="adiar")return[el("b",null,"Adiar para "+fmtDate(it.prazo)+": "),a];if(it.tipo==="repassar")return[el("b",null,"Repassar para "+(it.quemNome||"outra pessoa")+": "),a];
+    if(it.tipo==="juntar")return[el("b",null,"Juntar: "),a," repete a tarefa que já existia ",lk(it.tarefas[1],it.titulos&&it.titulos[1])];
+    if(it.tipo==="agrupar")return[el("b",null,"Agrupar em uma só (“"+(it.titulo||"")+"”): "),it.tarefas.map((id,i)=>[i?", ":"",lk(id,it.titulos&&it.titulos[i])])];
+    return[el("b",null,"Tarefa vaga: "),a];};
+  const row=(it,btns)=>el("div",{class:"revi s-"+it.estado},el("div",{class:"rw"},what(it)),
+    it.trecho&&el("blockquote",null,"“"+it.trecho+"”",!it.conferido&&el("small",null," (não localizei este trecho exato na ata)")),
+    it.motivo&&it.tipo!=="concluir"&&el("div",{class:"rm"},it.motivo),
+    el("div",{class:"rf"},el("span",null,it.tipo==="indefinida"?"":"certeza "+Math.round((it.certeza||0)*100)+"%"),btns));
+  const B=(t,fn,pri)=>el("button",{class:"btn"+(pri?" pri":""),onclick:fn},t);
+  const dec=(it,st)=>{it.estado=st;it.dts=Date.now();it.por=me.email;redraw();};
+  const grp=(title,list,fn)=>list.length?[el("h4",null,title+" ("+list.length+")"),list.map(fn)]:null;
+  const I=rv.itens,sug=I.filter(i=>i.estado==="sugerida"),apl=I.filter(i=>i.estado==="aplicada"),av=I.filter(i=>i.estado==="aviso"),fin=I.filter(i=>["aprovada","rejeitada","desfeita"].includes(i.estado));
+  box.append(el("header",null,el("h3",null,"O que o bot entendeu desta reunião"),
+    el("small",null,(rv.lidas?rv.lidas+" tarefas abertas comparadas":"")+(rv.liderNome?" · decide: "+rv.liderNome:"")+(rv.ts?" · "+ago(rv.ts):""))));
+  if(!I.length)box.append(el("p",{class:"none"},"Nenhuma tarefa aberta precisou de mudança a partir desta reunião."));
+  box.append(el("div",null,
+    grp("Aguardando decisão",sug,it=>row(it,can?[B("Aprovar",()=>{if(revApply(m,it))dec(it,"aprovada");},true),B("Rejeitar",()=>dec(it,"rejeitada"))]:null)),
+    sug.length&&!can?el("p",{class:"rn"},"Só "+(rv.liderNome||"o líder da equipe")+" ou um administrador aprova ou rejeita."):null,
+    grp("Aplicadas pelo bot",apl,it=>row(it,can?[B("Desfazer",()=>{if(revUndo(m,it))dec(it,"desfeita");})]:null)),
+    grp("Para definir",av,it=>row(it,can?[B("Dispensar",()=>dec(it,"rejeitada"))]:null)),
+    grp("Já decididas",fin,it=>row(it,[el("em",null,{aprovada:"aprovada",rejeitada:"rejeitada",desfeita:"desfeita"}[it.estado]),can&&it.estado==="aprovada"&&it.antes?B("Desfazer",()=>{if(revUndo(m,it))dec(it,"desfeita");}):null]))));
+  return box;
+}
+function botLogPanel(t){
+  const lg=t&&t.botlog,ask=t&&t.ask;if(!(lg&&lg.length)&&!ask)return null;const N={concluir:"marcada como concluída",adiar:"prazo alterado",repassar:"responsável alterado",juntar:"recebeu uma tarefa repetida",agrupar:"agrupou outras tarefas",desfeito:"mudança desfeita"};
+  const box=el("section",{class:"revp log"});
+  if(ask&&!S.ro)box.append(el("div",{class:"revi s-sugerida"},el("div",{class:"rw"},el("b",null,"Bot de atas: "),"esta tarefa está sem alteração há "+(ask.dias||21)+" dias. Ela ainda vale?"),
+    el("div",{class:"rf"},el("span",null,""),el("button",{class:"btn pri",onclick:()=>{delete t.ask;save(t);drawPeek();if(S.cur===t.id)renderMain(true);toast("Certo, a tarefa continua aberta.");}},"Ainda vale"))));
+  if(lg&&lg.length)box.append(el("div",null,el("h4",null,"Mudanças vindas de reuniões"),lg.slice(-6).reverse().map(x=>{const m=page(x.meet);return el("div",{class:"lg"},el("span",null,(N[x.tipo]||x.tipo)+" · "+(x.por&&x.por!=="bot"?mName((S.members||[]).find(u=>u.id===x.por)||{id:x.por}):"bot")+" · "+ago(x.ts)),m&&el("a",{href:"#p-"+m.id},m.title||"reunião"),x.trecho&&el("blockquote",null,"“"+x.trecho+"”"));})));
+  return box;
 }
 /* ============ atas do Gemini (bot de reuniões) ============ */
 const SCOPE_MEET="https://www.googleapis.com/auth/drive.meet.readonly";
@@ -2668,7 +2739,7 @@ function dashTip(text,e){let t=$("#dtip");if(!text){if(t)t.hidden=true;return;}
   t.textContent=text;t.hidden=false;const w=t.offsetWidth,x=Math.min(window.innerWidth-w-8,Math.max(8,e.clientX+12));t.style.left=x+"px";t.style.top=Math.max(8,e.clientY-34)+"px";}
 
 /* ============ aviso de versão nova ============ */
-const BUILD="1795527897";let newer=false;
+const BUILD="1795528865";let newer=false;
 async function checkBuild(){if(newer||!/^https?:/.test(location.protocol))return;
   try{const r=await fetch("version.txt?"+Date.now(),{cache:"no-store"});if(!r.ok)return;const v=(await r.text()).trim();
     if(v&&v!==BUILD){newer=true;const t=$("#toast");clearTimeout(toastT);t.textContent="";t.append("Há uma versão nova do workspace. ",el("button",{style:{color:"var(--mint)","font-weight":"600","margin-left":"8px"},onclick:()=>location.reload()},"Atualizar"));t.hidden=false;}}catch(_){}}

@@ -8,6 +8,7 @@ const { GoogleAuth } = require("google-auth-library");
 const { workspace } = require("./core");
 const seed = require("./seed");
 const { report } = require("./status");
+const { reviewer, SCHEMA: REV_SCHEMA } = require("./review");
 const zlib = require("zlib");
 
 admin.initializeApp();
@@ -43,7 +44,7 @@ exports.atasBot = onSchedule({ schedule: "0 6 * * *", timeZone: "America/Sao_Pau
   const [ps, ms] = await Promise.all([db.collection("pages").get(), db.collection("members").get()]);
   const pages = new Map(ps.docs.map(d => [d.id, Object.assign({ id: d.id }, d.data())]));
   const members = ms.docs.map(d => Object.assign({ id: d.id }, d.data())).filter(m => m.id.endsWith("@" + DOMAIN));
-  const ws = workspace(pages, members), stat = { ts: Date.now(), atas: 0, tarefas: 0, pessoas: 0, achados: 0, pulos: {}, erros: {} }, tried = new Set(), found = new Set(), failed = new Map(), pulo = k => { stat.pulos[k] = (stat.pulos[k] || 0) + 1; };
+  const ws = workspace(pages, members), stat = { ts: Date.now(), atas: 0, tarefas: 0, pessoas: 0, achados: 0, pulos: {}, erros: {} }, tried = new Set(), found = new Set(), failed = new Map(), texts = new Map(), toks = new Map(), pulo = k => { stat.pulos[k] = (stat.pulos[k] || 0) + 1; };
   if (!ws.meetDb()) { stat.erro = "Base Reuniões não encontrada"; await report(db, "atas", stat); logger.warn("atasBot", stat); return; }
   const sa = (await auth.getCredentials()).client_email;
   const since = new Date(Date.now() - 3 * 864e5).toISOString();
@@ -61,17 +62,44 @@ exports.atasBot = onSchedule({ schedule: "0 6 * * *", timeZone: "America/Sao_Pau
         // a permissão estreita (arquivos do Meet) lista as anotações mas, por delegação, não deixa baixar o texto;
         // se a leitura do Drive estiver autorizada no Admin Console, usa essa para baixar só os documentos listados aqui
         if (rd === undefined) rd = await userToken(sa, m.id, READ).catch(() => null);
+        if (rd) toks.set(m.id, rd);
         const er = await gfetch("https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(f.id) + "/export?mimeType=text/markdown", { headers: rd ? { Authorization: "Bearer " + rd } : H });
         if (!er.ok) { failed.set(f.id, (f.name || "").slice(0, 60) + ": " + (await er.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 140)); continue; }
         tried.add(f.id); failed.delete(f.id);
         const owner = (f.owners && f.owners[0] && f.owners[0].emailAddress) || m.id;
-        const { docs, why, tarefas, reuniao } = ws.build(f, await er.text(), owner, "bot");
+        const md = await er.text(), { docs, why, tarefas, reuniao, meet } = ws.build(f, md, owner, "bot");
+        if (meet) texts.set(meet, md);
         if (!docs.length) { pulo(why === "private" ? "reservadas (1:1 ou menos de 3 pessoas)" : why === "empty" ? "sem resumo nem próximas etapas" : why === "seen" ? "já importadas" : String(why)); continue; }
         const batch = db.batch(); docs.forEach(d => batch.set(db.collection("pages").doc(d.id), d)); await batch.commit();
         if (reuniao) stat.atas++; else pulo("segunda anotação da mesma reunião (juntada)"); stat.tarefas += tarefas || 0;
       }
     } catch (e) { stat.erros[m.id.split("@")[0]] = String(e.message || e).slice(0, 160); }
   }
+  // ---- revisão: compara cada reunião nova com as tarefas abertas (concluir, adiar, repassar, juntar, agrupar, vagas) ----
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  const rv = reviewer(pages, members), mdb = ws.meetDb(), auto = !(mdb && mdb.revAuto === false);
+  stat.revisadas = 0; stat.aplicadas = 0; stat.sugestoes = 0;
+  const write = async docs => { for (let i = 0; i < docs.length; i += 400) { const b = db.batch(); docs.slice(i, i + 400).forEach(d => { b.set(db.collection("pages").doc(d.id), d); pages.set(d.id, d); }); await b.commit(); } };
+  for (const meet of rv.pending(4, today).slice(0, 10)) {
+    try {
+      let md = texts.get(meet.id);
+      if (!md) { // reunião importada em outra execução: baixa o texto de novo, primeiro com a conta de quem é dono do documento
+        const order = [meet.gowner].concat(members.map(m => m.id)).filter((e, i, a) => e && a.indexOf(e) === i && members.some(m => m.id === e)).slice(0, 8);
+        for (const e of order) { let tk = toks.get(e); if (!tk) { tk = await userToken(sa, e, READ).catch(() => null); if (tk) toks.set(e, tk); } if (!tk) continue;
+          const er = await gfetch("https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(meet.gdoc || meet.gdocs[0]) + "/export?mimeType=text/markdown", { headers: { Authorization: "Bearer " + tk } });
+          if (er.ok) { md = await er.text(); break; } }
+      }
+      if (!md) { stat.revErro = "não consegui reler a ata de " + String(meet.title || "").slice(0, 50); continue; }
+      const cands = rv.candidates(meet); if (!cands.length) { await write([Object.assign({}, meet, { rev: { ts: Date.now(), itens: [], lidas: 0 } })]); continue; }
+      const ai = await gemini(rv.prompt(meet, md, cands, today), REV_SCHEMA), { docs, rev } = rv.apply(meet, ai.items, md, cands, today, { auto, model: ai.model });
+      await write(docs); stat.revisadas++; stat.modelo = ai.model;
+      stat.aplicadas += rev.itens.filter(i => i.estado === "aplicada").length; stat.sugestoes += rev.itens.filter(i => i.estado === "sugerida").length;
+    } catch (e) { stat.revErro = String(e.message || e).slice(0, 180); }
+  }
+  // ---- pauta de pendências da véspera e pergunta sobre tarefas paradas ----
+  try { const ps = rv.pautas(today, [...pages.values()].filter(p => p.kind === "cal")); if (ps.length) await write(ps); stat.pautas = ps.length;
+    const asks = rv.staleAsks(today); if (asks.length) await write(asks); stat.perguntas = asks.length; } catch (e) { stat.revErro = String(e.message || e).slice(0, 180); }
+  const acc = rv.stats(); stat.certas = acc.certas; stat.erradas = acc.erradas; stat.pendentes = acc.pendentes;
   stat.achados = found.size;
   if (failed.size) { stat.pulos["não consegui ler o documento"] = failed.size; stat.leitura = [...failed.values()][0]; }
   await db.collection("settings").doc("atasBot").set(stat);
@@ -91,14 +119,14 @@ function bodyText(p) {
   return "";
 }
 const clean = t => String(t || "").split(/\r?\n/).filter(l => !/^\s*>/.test(l)).join("\n").replace(/\n?On .{0,120}wrote:[\s\S]*$/i, "").replace(/\n?Em .{0,120}escreveu:[\s\S]*$/i, "").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
-async function gemini(text) {
+async function gemini(text, schema) {
   const client = await auth.getClient(), project = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT; let last = "";
   for (const m of MODELS) {
     try {
       const r = await client.request({ url: "https://aiplatform.googleapis.com/v1/projects/" + project + "/locations/global/publishers/google/models/" + m.trim() + ":generateContent", method: "POST",
-        data: { contents: [{ role: "user", parts: [{ text }] }], generationConfig: { temperature: 0, responseMimeType: "application/json", responseSchema: seed.SCHEMA } } });
+        data: { contents: [{ role: "user", parts: [{ text }] }], generationConfig: { temperature: 0, responseMimeType: "application/json", responseSchema: schema || seed.SCHEMA } } });
       const out = (((r.data.candidates || [])[0] || {}).content || {}).parts || [];
-      return { model: m.trim(), items: JSON.parse(out.map(p => p.text || "").join("") || "[]") };
+      return { model: m.trim(), items: JSON.parse(out.map(p => p.text || "").join("") || (schema ? "{}" : "[]")) };
     } catch (e) { last = String((e.response && e.response.data && e.response.data.error && e.response.data.error.message) || e.message || e).slice(0, 200); }
   }
   throw new Error("Gemini: " + last);

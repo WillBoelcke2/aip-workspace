@@ -76,8 +76,11 @@ function workspace(pages, members) {
     if (a.decisions.length) { row.blocks.push(B("h2", "Decisões")); a.decisions.forEach(x => row.blocks.push(B("ul", esc(fx(x))))); }
     row.blocks.push(B("h2", "Ata completa"), B("p", '<a href="https://docs.google.com/document/d/' + encodeURIComponent(file.id) + '/edit">Abrir as anotações do Gemini</a>'), B("p", ""));
     // segunda anotação da mesma reunião (mesmo título e dia): não cria outra linha; só registra o documento e aproveita as tarefas novas
-    const meet = twin ? Object.assign({}, twin, { gdocs: [...new Set([...(twin.gdocs || []), file.id])], ts: now }) : row;
-    if (twin && !(twin.blocks || []).some(b => String(b.h || "").includes(file.id))) { const bs = (twin.blocks || []).slice(); while (bs.length && bs[bs.length - 1].t === "p" && !bs[bs.length - 1].h) bs.pop(); meet.blocks = bs.concat([B("p", '<a href="https://docs.google.com/document/d/' + encodeURIComponent(file.id) + '/edit">Abrir a segunda anotação do Gemini</a>'), B("p", "")]); }
+    // a linha pode ter sido criada na véspera como pauta de pendências: a ata preenche essa mesma linha
+    const pauta = twin && twin.src === "pauta";
+    const meet = pauta ? Object.assign({}, twin, { gdoc: file.id, src: "ata-bot", ts: now, by: byEmailAddr || "bot", gowner: ownerEmail || "", props: Object.assign({}, twin.props, row.props), blocks: row.blocks.slice(0, -1).concat(twin.blocks || []) })
+      : twin ? Object.assign({}, twin, { gdocs: [...new Set([...(twin.gdocs || []), file.id])], ts: now }) : Object.assign(row, { gowner: ownerEmail || "" });
+    if (twin && !pauta && !(twin.blocks || []).some(b => String(b.h || "").includes(file.id))) { const bs = (twin.blocks || []).slice(); while (bs.length && bs[bs.length - 1].t === "p" && !bs[bs.length - 1].h) bs.pop(); meet.blocks = bs.concat([B("p", '<a href="https://docs.google.com/document/d/' + encodeURIComponent(file.id) + '/edit">Abrir a segunda anotação do Gemini</a>'), B("p", "")]); }
     out.push(meet);
     let novas = 0;
     if (td) {
@@ -104,7 +107,7 @@ function workspace(pages, members) {
       });
     }
     out.forEach(d => pages.set(d.id, d));
-    return { docs: out, why: "ok", tarefas: novas, reuniao: !twin };
+    return { docs: out, why: "ok", tarefas: novas, reuniao: !twin || pauta, meet: meet.id };
   }
   return { build, seen, meetDb };
 }

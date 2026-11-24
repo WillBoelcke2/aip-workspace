@@ -267,3 +267,19 @@ O mesmo **Importar arquivo** também aceita um documento inteiro: o JSON de uma 
 ## Esvaziar a lixeira
 
 Na **Lixeira**, o botão **Esvaziar lixeira** exclui para sempre tudo o que está lá (as páginas e o que há dentro delas). Ele pede uma confirmação: o primeiro clique mostra quantos itens serão excluídos, o segundo exclui. Não há Ctrl+Z para isso; o que resta é o backup diário, guardado por 30 dias. Reuniões importadas pelo robô das atas e excluídas para sempre não voltam a ser importadas.
+
+## Revisão das reuniões pelo bot de atas
+
+Depois de importar cada ata, o robô das 6h compara a reunião com as tarefas abertas dos participantes e da equipe, usando o Gemini dentro do Google Cloud da empresa. Para cada mudança ele guarda o trecho da ata que a justifica e um grau de certeza:
+
+- **Certeza alta e trecho conferido na ata:** aplica sozinho (concluir, adiar o prazo, repassar para outra pessoa).
+- **Certeza média:** vira sugestão para o **líder da equipe** aprovar ou rejeitar.
+- **Certeza baixa:** não faz nada.
+
+Ele também sugere **juntar** uma tarefa nova que repete uma antiga, **agrupar** passos pequenos da mesma pessoa em uma tarefa só e aponta tarefas **vagas**. Essas três nunca são aplicadas sozinhas.
+
+Na página de cada reunião aparece o bloco **O que o bot entendeu desta reunião**, com os botões Aprovar, Rejeitar e Desfazer (para o líder e os administradores). Cada tarefa alterada mostra de qual reunião veio a mudança. O líder recebe um aviso em **Avisos** quando há sugestões.
+
+Na véspera de uma reunião recorrente que esteja na agenda, o robô cria a linha da reunião com as **pendências** das anteriores, por pessoa; quando a ata chega, ela preenche essa mesma linha. Tarefas de reunião sem alteração há mais de três semanas geram uma pergunta ao dono em Avisos.
+
+A página **Robôs** mostra quantas reuniões foram comparadas, quantas mudanças e sugestões saíram e a taxa de acerto (mudanças mantidas contra rejeitadas ou desfeitas). As rejeições entram como exemplo nas revisões seguintes. Para o bot só sugerir, sem aplicar nada sozinho, peça para desligar a aplicação automática.
