@@ -134,6 +134,7 @@ function reviewer(pages, members) {
       const dated = list.filter(m => (m.props || {})[f.dp && f.dp.id]).sort((a, b) => String((b.props || {})[f.dp.id]).localeCompare(String((a.props || {})[f.dp.id]))), last = dated[0];
       if (!last || (last.props || {})[f.dp.id] < addDays(today, -21) || last.src === "pauta") return;
       const ev = evs.find(e => flat(e.title) === ser); if (!ev) return;
+      if (ev.date < addDays((last.props || {})[f.dp.id], 5)) return; // só reuniões semanais ou mais espaçadas: daily não ganha pauta todo dia
       const id = "pauta-" + ser.replace(/[^a-z0-9]+/g, "-").slice(0, 34) + "-" + ev.date; if (page(id) || list.some(m => (m.props || {})[f.dp.id] === ev.date)) return;
       const ids = new Set(list.map(m => m.id)), open = kids(f.td.id).filter(r => !closed(f, r) && f.rel && ((r.props || {})[f.rel.id] || []).some(x => ids.has(x)));
       if (!open.length) return;
