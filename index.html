@@ -757,7 +757,7 @@ button.h2link{font:inherit;font-size:13px}
 <div id="search" hidden></div>
 <div id="toast" hidden role="status"></div>
 <div id="gate" hidden></div>
-<input type="file" id="imp-file" accept="application/json,.json,text/csv,.csv,.tsv" hidden>
+<input type="file" id="imp-file" accept="application/json,.json,text/csv,.csv,.tsv,.md,.markdown,.txt,text/markdown,text/plain" hidden>
 <input type="file" id="up-file" hidden>
 
 <script>
@@ -2668,7 +2668,7 @@ function dashTip(text,e){let t=$("#dtip");if(!text){if(t)t.hidden=true;return;}
   t.textContent=text;t.hidden=false;const w=t.offsetWidth,x=Math.min(window.innerWidth-w-8,Math.max(8,e.clientX+12));t.style.left=x+"px";t.style.top=Math.max(8,e.clientY-34)+"px";}
 
 /* ============ aviso de versão nova ============ */
-const BUILD="1795466499";let newer=false;
+const BUILD="1795523731";let newer=false;
 async function checkBuild(){if(newer||!/^https?:/.test(location.protocol))return;
   try{const r=await fetch("version.txt?"+Date.now(),{cache:"no-store"});if(!r.ok)return;const v=(await r.text()).trim();
     if(v&&v!==BUILD){newer=true;const t=$("#toast");clearTimeout(toastT);t.textContent="";t.append("Há uma versão nova do workspace. ",el("button",{style:{color:"var(--mint)","font-weight":"600","margin-left":"8px"},onclick:()=>location.reload()},"Atualizar"));t.hidden=false;}}catch(_){}}
@@ -2691,7 +2691,7 @@ function accountMenu(anchor){
     mi("Lixeira","trash",()=>trashPop(anchor)),el("hr"),
     S.roles&&S.admin&&mi("Pessoas e acessos","lock",()=>peoplePop(anchor)),
     mi("Exportar backup (JSON)","page",exportData),
-    mi("Importar arquivo (JSON ou CSV)","plus",()=>$("#imp-file").click()),
+    mi("Importar arquivo (JSON, CSV ou Markdown)","plus",()=>$("#imp-file").click()),
     el("hr"),mi("Sair","x",()=>{G.token=null;G.exp=0;G.cal={};try{sessionStorage.removeItem("aip-g");}catch(_){}auth.signOut();})]);
 }
 async function peoplePop(anchor){
@@ -2734,9 +2734,10 @@ function exportData(){
 $("#imp-file").addEventListener("change",async e=>{
   const f=e.target.files[0];e.target.value="";if(!f)return;let list,src;const txt=(await f.text()).replace(/^\uFEFF/,""),nm=f.name.replace(/\.[a-z0-9]+$/i,"");
   if(/\.(csv|tsv)$/i.test(f.name))return importTables(csvTables(txt,nm));
+  if(/\.(md|markdown|txt)$/i.test(f.name))return importDoc(mdDoc(txt,nm));
   try{src=JSON.parse(txt);}catch(_){const t=csvTables(txt,nm);if(t.length)return importTables(t);return toast("O arquivo não é um JSON nem uma planilha CSV válida.");}
   list=(Array.isArray(src)?src:[]).filter(p=>p&&typeof p.id==="string"&&/^[\w-]{1,60}$/.test(p.id)&&["page","db","cal"].includes(p.kind));
-  if(!list.length)return importTables(foreignTables(src,nm));
+  if(!list.length){const nd=notionDoc(src,nm);return nd?importDoc(nd):importTables(foreignTables(src,nm));}
   const same=list.filter(p=>S.pages.has(p.id)).length;
   pop($(".side-foot"),[el("div",{class:"field"},el("b",null,`Importar ${list.length} ${list.length===1?"página":"páginas e itens"}?`),
       el("span",{style:{color:"var(--muted)","font-size":"13px"}},same?`${same} já existem aqui e serão substituídos pelo conteúdo do arquivo.`:"Nada do que já existe será alterado.")),
@@ -2776,11 +2777,11 @@ function foreignTables(src,name){
   walk(src,name,0);return out.slice(0,12);
 }
 function tableDocs(t,parent,order){
-  const rows=t.rows.slice(0,3000),keys=[];rows.forEach(r=>Object.keys(r).forEach(k=>{if(!keys.includes(k))keys.push(k);}));if(!keys.length||!rows.length)return [];
+  const rows=t.rows.slice(0,3000),keys=Array.isArray(t.cols)?t.cols.slice():[];rows.forEach(r=>Object.keys(r).forEach(k=>{if(!keys.includes(k))keys.push(k);}));if(!keys.length||!rows.length)return [];
   const vals=k=>rows.map(r=>r[k]).filter(v=>v!=null&&v!==""&&!(Array.isArray(v)&&!v.length)),str=v=>Array.isArray(v)?v.join(", "):typeof v==="object"?JSON.stringify(v):String(v);
   const toIso=v=>{const x=String(v).trim();let m=x.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return m[0];m=x.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);return m?`${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`:"";};
   const isNum=v=>typeof v==="number"||(typeof v==="string"&&/^-?\d+([.,]\d+)?$/.test(v.trim())),toNum=v=>typeof v==="number"?v:Number(String(v).trim().replace(",","."));
-  const tk=keys.find(k=>/^(name|nome|title|t[ií]tulo|tarefa|projeto|assunto|empresa|cliente)$/i.test(k.trim()))||keys.find(k=>{const v=vals(k);return v.length&&v.every(x=>typeof x==="string")&&new Set(v).size>v.length*.7;})||keys[0];
+  const tk=keys.find(k=>/^(name|nome|title|t[ií]tulo|tarefa|projeto|assunto|empresa|cliente)$/i.test(k.trim()))||keys.find(k=>{const v=vals(k);return v.length&&v.every(x=>typeof x==="string")&&!v.every(isNum)&&new Set(v).size>v.length*.7;})||keys[0];
   const used=new Set(["title"]),pid=k=>{let b=norm(k).replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,20)||"c",id=b,n=2;while(used.has(id))id=b+"-"+n++;used.add(id);return id;};
   const props=[{id:"title",name:tk,type:"title"}],conv=[];
   keys.filter(k=>k!==tk).forEach(k=>{const v=vals(k),id=pid(k),p={id,name:k.slice(0,60),type:"text"};let f=x=>str(x);
@@ -2808,6 +2809,59 @@ function importTables(tabs){
     el("div",{class:"field"},el("button",{class:"btn pri",onclick:()=>{closePop();let o=((kids(dest?dest.id:null).at(-1)||{}).order||0),first=null,n=0;
       tabs.forEach(t=>{const docs=tableDocs(t,dest?dest.id:null,++o);docs.forEach(save);if(docs.length){first=first||docs[0].id;n+=docs.length-1;}});
       if(dest)S.open.add(dest.id);renderAll();if(first)location.hash="p-"+first;toast(`Importação concluída: ${n} itens. Ctrl+Z desfaz.`);}},"Importar"))],{focus:"x-none"});
+}
+// ---- documento de fora (página do Notion em JSON, Markdown) vira página, e as tabelas dele viram bases em linha ----
+const unEnt=t=>{const d=document.createElement("textarea");d.innerHTML=t;return d.value;};
+const mdInline=t=>esc(unEnt(t).replace(/\\([\\`*_{}\[\]()#+\-.!|])/g,"$1")).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/__(.+?)__/g,"<b>$1</b>").replace(/(^|[\s(])\*(?!\s)([^*]+?)\*(?=[\s).,;:!?]|$)/g,"$1<i>$2</i>").replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
+const plainOf=h=>{const d=document.createElement("div");d.innerHTML=h;return d.textContent.trim();};
+function mdDoc(txt,name){
+  const L=txt.replace(/\r/g,"").split("\n"),items=[];let title="",para=[],i=0;
+  const flush=()=>{if(para.length){items.push({t:"p",h:mdInline(para.join(" "))});para=[];}},cells=l=>l.trim().replace(/^\||\|$/g,"").split(/(?<!\\)\|/).map(c=>plainOf(mdInline(c.trim())));
+  for(;i<L.length;i++){const l=L[i],x=l.trim();let m;
+    if(!x){flush();continue;}
+    if(x.startsWith("```")){flush();const c=[];for(i++;i<L.length&&!L[i].trim().startsWith("```");i++)c.push(L[i]);items.push({t:"code",h:esc(c.join("\n"))});continue;}
+    if((m=x.match(/^(#{1,6})\s+(.*)$/))){flush();if(m[1].length===1&&!title&&!items.length){title=plainOf(mdInline(m[2]));continue;}items.push({t:m[1].length===1?"h1":m[1].length===2?"h2":"h3",h:mdInline(m[2])});continue;}
+    if(/^(-{3,}|\*{3,}|_{3,})$/.test(x)){flush();items.push({t:"hr",h:""});continue;}
+    if(x.startsWith("|")&&L[i+1]&&/^\s*\|?\s*:?-{2,}/.test(L[i+1])){flush();const head=cells(x),rows=[];for(i+=2;i<L.length&&L[i].trim().startsWith("|");i++)rows.push(cells(L[i]));i--;items.push({table:{head,rows}});continue;}
+    if((m=x.match(/^[-*+]\s+\[( |x|X)\]\s+(.*)$/))){flush();items.push({t:"todo",h:mdInline(m[2]),c:m[1]!==" "});continue;}
+    if((m=x.match(/^[-*+]\s+(.*)$/))){flush();items.push({t:"ul",h:mdInline(m[1])});continue;}
+    if((m=x.match(/^\d+[.)]\s+(.*)$/))){flush();items.push({t:"ol",h:mdInline(m[1])});continue;}
+    if((m=x.match(/^>\s?(.*)$/))){flush();items.push({t:"quote",h:mdInline(m[1])});continue;}
+    para.push(x);}
+  flush();return items.length?{title:title||name,items}:null;
+}
+function notionDoc(src,name){
+  const isBlk=b=>b&&typeof b==="object"&&typeof b.type==="string"&&(b.object==="block"||(b.type in b));
+  const kidsOf=o=>Array.isArray(o)?o:o&&Array.isArray(o.children)?o.children:o&&Array.isArray(o.results)?o.results:null;
+  const list=kidsOf(src);if(!list||!list.length||list.filter(isBlk).length<list.length*.8)return null;
+  const rt=a=>(Array.isArray(a)?a:[]).map(t=>{let h=esc(t.plain_text??t.text?.content??"").replace(/\n/g,"<br>");const an=t.annotations||{},href=t.href||t.text?.link?.url;
+    if(an.bold)h="<b>"+h+"</b>";if(an.italic)h="<i>"+h+"</i>";if(an.underline)h="<u>"+h+"</u>";if(an.strikethrough)h="<s>"+h+"</s>";if(href&&/^https?:/.test(href))h=`<a href="${esc(href)}" target="_blank" rel="noopener">${h}</a>`;return h;}).join("");
+  const MAP={paragraph:"p",heading_1:"h1",heading_2:"h2",heading_3:"h3",bulleted_list_item:"ul",numbered_list_item:"ol",to_do:"todo",quote:"quote",callout:"callout",code:"code",toggle:"p"},items=[];
+  const walk=arr=>arr.forEach(b=>{if(!isBlk(b))return;const d=b[b.type]||{};
+    if(b.type==="divider")items.push({t:"hr",h:""});
+    else if(b.type==="table"){const rs=(d.children||b.children||[]).map(r=>((r.table_row||{}).cells||[]).map(c=>plainOf(rt(c))));if(rs.length)items.push({table:{head:rs[0],rows:rs.slice(1)}});return;}
+    else if(MAP[b.type]){const it={t:MAP[b.type],h:rt(d.rich_text||d.text)};if(b.type==="to_do")it.c=!!d.checked;if(it.h||it.t!=="p")items.push(it);}
+    else if(d.url||d.external?.url)items.push({t:"p",h:`<a href="${esc(d.url||d.external.url)}" target="_blank" rel="noopener">${esc(d.url||d.external.url)}</a>`});
+    const sub=d.children||b.children;if(Array.isArray(sub)&&b.type!=="table")walk(sub);});
+  walk(list);if(!items.length)return null;
+  let title="";const pr=src&&src.properties;if(pr&&typeof pr==="object")Object.values(pr).forEach(v=>{const a=v&&(v.title||(v.type==="title"&&v.title));if(Array.isArray(a)&&!title)title=plainOf(rt(a));});
+  return {title:title||name,items};
+}
+function importDoc(doc){
+  if(!doc||!doc.items.length)return toast("Não encontrei conteúdo para importar neste arquivo.");
+  const cur=page(S.cur),here=cur&&cur.kind==="page"&&!isRow(cur)&&alive(cur)?cur:null,nt=doc.items.filter(x=>x.table).length;
+  const blank=here&&!kids(here.id).length&&!(here.blocks||[]).some(b=>b.t==="dbv"||(b.h&&plainOf(b.h))),fill=blank?here:null,dest=fill?null:here;
+  pop($(".side-foot"),[el("div",{class:"field"},el("b",null,fill?`Preencher esta página com “${doc.title}”?`:`Criar a página “${doc.title}”?`),
+      el("span",{style:{color:"var(--muted)","font-size":"13px"}},`${doc.items.length-nt} blocos de texto`+(nt?` e ${nt} ${nt===1?"tabela, que vira uma base":"tabelas, que viram bases"} dentro da página`:"")+". "+(fill?"A página aberta está vazia e recebe o conteúdo.":dest?`Entra dentro de “${dest.title||"Sem título"}”`+(dest.lock?", com o mesmo acesso restrito.":"."):"Entra na raiz do workspace, visível para todo o time."))),
+    el("div",{class:"field"},el("button",{class:"btn pri",onclick:()=>{closePop();
+      const pg=fill||{id:rid(),kind:"page",title:doc.title,parent:dest?dest.id:null,order:((kids(dest?dest.id:null).at(-1)||{}).order||0)+1,props:{},blocks:[]};
+      if(fill&&(!fill.title||/^sem t[ií]tulo$/i.test(fill.title)))fill.title=doc.title;
+      const blocks=[],extra=[];let last="",n=0;
+      doc.items.forEach(it=>{if(!it.table){const b={id:rid(),t:it.t,h:it.h||""};if(it.t==="todo")b.c=!!it.c;blocks.push(b);const tx=plainOf(it.h||"");if(tx&&(/^h\d$/.test(it.t)||(it.t==="p"&&tx.length<70&&/^<b>.*<\/b>:?$/.test((it.h||"").trim()))))last=tx.replace(/:$/,"").replace(/^\d+[.)]\s+/,"");return;}
+        const head=it.table.head.map((h,i)=>h||"Coluna "+(i+1)).map((h,i,a)=>a.indexOf(h)===i?h:h+" "+(i+1));
+        const rows=it.table.rows.map(r=>{const o={};head.forEach((h,i)=>{if(r[i]!=null&&String(r[i]).trim()!=="")o[h]=String(r[i]).trim();});return o;}).filter(o=>Object.keys(o).length);if(!rows.length)return;
+        const docs=tableDocs({name:last||"Tabela "+(++n),rows,cols:head},pg.id,extra.filter(x=>x.kind==="db").length+1);if(!docs.length)return;docs[0].views=docs[0].views.slice(0,1);extra.push(...docs);blocks.push({id:rid(),t:"dbv",ref:docs[0].id,own:true,v:{type:"table",limit:0}});});
+      blocks.push({id:rid(),t:"p",h:""});pg.blocks=blocks;save(pg);extra.forEach(save);if(pg.parent)S.open.add(pg.parent);S.open.add(pg.id);renderAll();location.hash="p-"+pg.id;toast("Importação concluída. Ctrl+Z desfaz.");}},"Importar"))],{focus:"x-none"});
 }
 function gate(kind){
   const g=$("#gate");g.hidden=false;g.textContent="";const box=el("div",{class:"gate-box"},logo());

@@ -259,3 +259,7 @@ No menu da conta, **Importar arquivo (JSON ou CSV)** aceita três coisas:
 - uma **planilha exportada em CSV** (separada por vírgula, ponto e vírgula ou tabulação), com o cabeçalho na primeira linha.
 
 Os tipos das colunas são detectados sozinhos (número, data, link, caixa de seleção, seleção, status, texto) e podem ser ajustados depois. A base entra dentro da página que estiver aberta, com o mesmo acesso dela, ou na raiz se você estiver em outro lugar. Cada tabela entra com até 3.000 itens. Ctrl+Z logo em seguida desfaz a importação. Não importe dados de pacientes.
+
+### Páginas do Notion e Markdown
+
+O mesmo **Importar arquivo** também aceita um documento inteiro: o JSON de uma página do Notion (com os blocos em `children`) ou um arquivo **Markdown** (`.md`). Títulos, parágrafos, listas, checklists (com o que já estava marcado), citações e destaques viram blocos da página. Cada tabela do documento vira uma base dentro da página, com o nome do título que vem antes dela. Se a página aberta estiver vazia, ela recebe o conteúdo; senão, o documento entra como uma página nova dentro dela.
