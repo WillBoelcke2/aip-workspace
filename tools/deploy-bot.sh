@@ -44,14 +44,10 @@ firebase deploy --only functions --project "$PROJECT" --force
 CID=$(gcloud iam service-accounts describe "$SA" --format='value(oauth2ClientId)')
 cat <<MSG
 
-4/4 Falta um passo, feito por um superadministrador do Google Workspace:
-  1. Abra https://admin.google.com/ac/owl/domainwidedelegation
-  2. Clique em "Adicionar novo"
-  3. ID do cliente:  $CID
-  4. Escopos OAuth (os três, separados por vírgula):
-     https://www.googleapis.com/auth/drive.meet.readonly,https://www.googleapis.com/auth/gmail.readonly,https://www.googleapis.com/auth/calendar.readonly
-  5. Autorizar
-  (Se o ID já estiver na lista, passe o mouse nele, clique em Editar e deixe os três escopos.)
+4/4 Publicado. Confira só na primeira vez (ou se algum robô acusar falta de permissão):
+  Em https://admin.google.com/ac/owl/domainwidedelegation, o ID do cliente $CID
+  precisa ter estes quatro escopos (se já estiverem lá, não mexa em nada):
+     https://www.googleapis.com/auth/drive.meet.readonly,https://www.googleapis.com/auth/gmail.readonly,https://www.googleapis.com/auth/calendar.readonly,https://www.googleapis.com/auth/drive.readonly
 
 Depois, teste com:  ./tools/deploy-bot.sh run        (atas)
                     ./tools/deploy-bot.sh run seed   (Radar Seed)
