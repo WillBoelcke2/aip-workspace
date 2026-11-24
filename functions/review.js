@@ -35,7 +35,9 @@ function reviewer(pages, members) {
   const bodyOf = r => String(((r.blocks || []).find(b => b.t === "p" && b.h) || {}).h || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
   const teamOf = title => { const t = teamDb(); if (!t) return null; const toks = norm(String(title || "").replace(/\s*[—–-]\s*\d{2}\/\d{2}\/\d{4}.*$/, "")).split(/[^a-z0-9&]+/).filter(Boolean);
     return kids(t.id).find(r => { const k = norm(r.title).replace(/\s+/g, ""); return k && toks.some(x => x === k || (k.length >= 5 && x.length >= 5 && x.slice(0, 5) === k.slice(0, 5))); }) || null; };
-  const leaderOf = tm => { const t = teamDb(); if (!t || !tm) return null; const lp = props(t).find(p => p.type === "person"), name = lp && optName(lp, (tm.props || {})[lp.id]); const mb = name && members.find(m => norm(m.name) === norm(name)); return mb ? { email: mb.id, name } : name ? { email: "", name } : null; };
+  const leaderOf = tm => { const t = teamDb(); if (!t || !tm) return null;
+    // a equipe pode indicar outra pessoa para decidir as sugestões do bot (campo "revisor", com o e-mail), sem trocar o líder
+    const rv = tm.revisor && members.find(m => m.id === tm.revisor); if (rv) return { email: rv.id, name: rv.name || rv.id.split("@")[0] }; const lp = props(t).find(p => p.type === "person"), name = lp && optName(lp, (tm.props || {})[lp.id]); const mb = name && members.find(m => norm(m.name) === norm(name)); return mb ? { email: mb.id, name } : name ? { email: "", name } : null; };
   const person = (name, opts) => { const n = norm(name); if (!n) return null; let o = opts.find(o => norm(o.name) === n); if (o) return o; const tk = n.split(" ");
     const hit = opts.filter(o => { const ot = norm(o.name).split(" "); return ot[0] === tk[0] && (tk.length === 1 || ot.includes(tk[tk.length - 1])); }); return hit.length === 1 ? hit[0] : null; };
 
