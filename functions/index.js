@@ -15,6 +15,18 @@ const DOMAIN = "aipathology.com.br";
 const SCOPE = "https://www.googleapis.com/auth/drive.meet.readonly";
 const auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
 
+// Chamada às APIs do Google com novas tentativas quando o limite de uso momentâneo é atingido (429, 403 de "rate limit") ou o serviço oscila (5xx).
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function gfetch(url, opts) {
+  for (let i = 0; ; i++) {
+    const r = await fetch(url, opts);
+    if (r.ok || i >= 4) return r;
+    let retry = r.status === 429 || r.status >= 500;
+    if (!retry && r.status === 403) { const t = await r.clone().text().catch(() => ""); retry = /rate ?limit|quota/i.test(t); }
+    if (!retry) return r;
+    await sleep(1500 * Math.pow(2, i) + Math.random() * 800);
+  }
+}
 async function userToken(sa, email, scope) {
   const now = Math.floor(Date.now() / 1000);
   const payload = JSON.stringify({ iss: sa, sub: email, scope: scope || SCOPE, aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 1800 });
@@ -38,12 +50,12 @@ exports.atasBot = onSchedule({ schedule: "0 6 * * *", timeZone: "America/Sao_Pau
   for (const m of members) {
     try {
       const tk = await userToken(sa, m.id), H = { Authorization: "Bearer " + tk };
-      const lr = await fetch("https://www.googleapis.com/drive/v3/files?pageSize=50&orderBy=modifiedTime&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=" + encodeURIComponent("files(id,name,modifiedTime,owners(emailAddress))") + "&q=" + encodeURIComponent(q), { headers: H });
+      const lr = await gfetch("https://www.googleapis.com/drive/v3/files?pageSize=50&orderBy=modifiedTime&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=" + encodeURIComponent("files(id,name,modifiedTime,owners(emailAddress))") + "&q=" + encodeURIComponent(q), { headers: H });
       const lj = await lr.json(); if (!lr.ok) throw new Error((lj.error && lj.error.message) || "drive " + lr.status);
       stat.pessoas++;
       for (const f of lj.files || []) {
         if (!/gemini/i.test(f.name) || ws.seen(f.id)) continue;
-        const er = await fetch("https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(f.id) + "/export?mimeType=text/markdown", { headers: H });
+        const er = await gfetch("https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(f.id) + "/export?mimeType=text/markdown", { headers: H });
         if (!er.ok) continue;
         const owner = (f.owners && f.owners[0] && f.owners[0].emailAddress) || m.id;
         const { docs } = ws.build(f, await er.text(), owner, "bot");
@@ -97,11 +109,11 @@ exports.seedRadar = onSchedule({ schedule: "20 6 * * *", timeZone: "America/Sao_
     const sa = (await auth.getCredentials()).client_email, H = { Authorization: "Bearer " + await userToken(sa, owner, GMAIL) };
     const days = new Date(today + "T12:00:00Z").getUTCDay() === 1 ? 3 : 2;
     const G = "https://gmail.googleapis.com/gmail/v1/users/me/";
-    const lr = await fetch(G + "threads?maxResults=60&q=" + encodeURIComponent("newer_than:" + days + "d -category:promotions -category:social -category:forums"), { headers: H });
+    const lr = await gfetch(G + "threads?maxResults=60&q=" + encodeURIComponent("newer_than:" + days + "d -category:promotions -category:social -category:forums"), { headers: H });
     const lj = await lr.json(); if (!lr.ok) throw new Error((lj.error && lj.error.message) || "gmail " + lr.status);
     const threads = [], marks = [];
     for (const t of lj.threads || []) {
-      const tr = await fetch(G + "threads/" + t.id + "?format=full", { headers: H }); if (!tr.ok) continue;
+      const tr = await gfetch(G + "threads/" + t.id + "?format=full", { headers: H }); if (!tr.ok) continue;
       const tj = await tr.json(), msgs = tj.messages || [], lastM = msgs[msgs.length - 1]; if (!lastM) continue;
       const key = t.id + ":" + lastM.id; if (seen.has(key)) continue; marks.push(key);
       const hd = (m, n) => ((m.payload && m.payload.headers) || []).find(h => h.name.toLowerCase() === n) || { value: "" };
@@ -159,7 +171,7 @@ exports.calSync = onSchedule({ schedule: "10 6-21 * * *", timeZone: "America/Sao
   for (const email of members) {
     try {
       const tk = await userToken(sa, email, CAL);
-      const r = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events?singleEvents=true&orderBy=startTime&maxResults=600&timeZone=America/Sao_Paulo&timeMin=" + encodeURIComponent(from) + "&timeMax=" + encodeURIComponent(to) + "&fields=" + encodeURIComponent("items(id,status,summary,htmlLink,hangoutLink,visibility,start,end,attendees(self,responseStatus))"), { headers: { Authorization: "Bearer " + tk } });
+      const r = await gfetch("https://www.googleapis.com/calendar/v3/calendars/primary/events?singleEvents=true&orderBy=startTime&maxResults=600&timeZone=America/Sao_Paulo&timeMin=" + encodeURIComponent(from) + "&timeMax=" + encodeURIComponent(to) + "&fields=" + encodeURIComponent("items(id,status,summary,htmlLink,hangoutLink,visibility,start,end,attendees(self,responseStatus))"), { headers: { Authorization: "Bearer " + tk } });
       const j = await r.json(); if (!r.ok) throw new Error((j.error && j.error.message) || "calendar " + r.status);
       const events = (j.items || []).filter(e => e.status !== "cancelled" && e.start && !(e.attendees || []).some(a => a.self && a.responseStatus === "declined")).map(e => {
         const allDay = !!e.start.date, s0 = e.start.dateTime || "", e0 = (e.end && e.end.dateTime) || "", priv = e.visibility === "private" || e.visibility === "confidential";
