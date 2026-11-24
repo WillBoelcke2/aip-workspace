@@ -2291,7 +2291,7 @@ const SCOPE_MEET="https://www.googleapis.com/auth/drive.meet.readonly";
 const A={busy:false,pend:[],done:0,err:"",last:0,tasks:0};
 const meetDb=()=>{const d=page("reunioes");return d&&alive(d)&&d.kind==="db"?d:[...S.pages.values()].find(x=>x.kind==="db"&&alive(x)&&norm(x.title)==="reunioes");};
 const ataId=id=>"ata-"+String(id).replace(/[^\w-]/g,"").slice(0,50);
-const ataSeen=id=>S.pages.has(ataId(id))||[...S.pages.values()].some(p=>p.gdoc===id);
+const ataSeen=id=>S.pages.has(ataId(id))||[...S.pages.values()].some(p=>p.gdoc===id||(Array.isArray(p.gdocs)&&p.gdocs.includes(id))||(Array.isArray(p.skipDocs)&&p.skipDocs.includes(id)));
 const ataSkip=()=>{try{return JSON.parse(localStorage.getItem("aip-ata-skip")||"[]");}catch(_){return[];}};
 const ataSkipAdd=id=>{try{localStorage.setItem("aip-ata-skip",JSON.stringify([...new Set([...ataSkip(),id])].slice(-300)));}catch(_){}};
 const ATA_PRIV=/(^|[^\d])1\s*[:x]\s*1([^\d]|$)|one.on.one|desempenho|feedback|\bpdi\b|avalia[cç][aã]o|sal[aá]ri|remunera|demiss|deslig|societ|confidencial|jur[ií]dic|\brh\b|entrevista/i;
@@ -2668,20 +2668,27 @@ function dashTip(text,e){let t=$("#dtip");if(!text){if(t)t.hidden=true;return;}
   t.textContent=text;t.hidden=false;const w=t.offsetWidth,x=Math.min(window.innerWidth-w-8,Math.max(8,e.clientX+12));t.style.left=x+"px";t.style.top=Math.max(8,e.clientY-34)+"px";}
 
 /* ============ aviso de versão nova ============ */
-const BUILD="1795527606";let newer=false;
+const BUILD="1795527897";let newer=false;
 async function checkBuild(){if(newer||!/^https?:/.test(location.protocol))return;
   try{const r=await fetch("version.txt?"+Date.now(),{cache:"no-store"});if(!r.ok)return;const v=(await r.text()).trim();
     if(v&&v!==BUILD){newer=true;const t=$("#toast");clearTimeout(toastT);t.textContent="";t.append("Há uma versão nova do workspace. ",el("button",{style:{color:"var(--mint)","font-weight":"600","margin-left":"8px"},onclick:()=>location.reload()},"Atualizar"));t.hidden=false;}}catch(_){}}
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)checkBuild();});setInterval(checkBuild,5*60e3);setTimeout(checkBuild,4000);
 
 /* ============ conta, backup e início ============ */
+// ao excluir para sempre uma reunião importada, guarda o documento de origem para os robôs não a trazerem de volta
+function purgeAll(list){
+  const md=typeof meetDb==="function"?meetDb():null,ids=[];const walk=p=>{if(p.gdoc)ids.push(p.gdoc);(p.gdocs||[]).forEach(g=>ids.push(g));S.pages.forEach(c=>{if(c.parent===p.id)walk(c);});};list.forEach(walk);
+  if(md&&ids.length){md.skipDocs=[...new Set([...(md.skipDocs||[]),...ids])].slice(-600);save(md);}
+  list.forEach(p=>{if(S.pages.has(p.id))purge(p.id);});
+}
 function trashPop(anchor){
   const list=[...S.pages.values()].filter(p=>p.trashed);
-  pop(anchor,[el("h6",null,"Lixeira"),
+  const all=el("button",{class:"btn","data-w":1,style:{"margin-left":"auto"},onclick:()=>{if(all.dataset.ok){const n=list.length;purgeAll(list);closePop();renderAll();toast(n===1?"1 item excluído para sempre.":n+" itens excluídos para sempre.");return;}all.dataset.ok="1";all.textContent="Confirmar: excluir "+(list.length===1?"1 item":list.length+" itens")+" para sempre";all.style.color="var(--crimson)";}},"Esvaziar lixeira");
+  pop(anchor,[el("h6",{style:{display:"flex","align-items":"center",gap:"8px"}},"Lixeira",!S.ro&&list.length>0&&all),
     !list.length&&el("div",{class:"none"},"A lixeira está vazia."),
     list.map(p=>el("div",{class:"mi"},monogram(p),el("span",{style:{flex:"1","min-width":"0",overflow:"hidden","text-overflow":"ellipsis","white-space":"nowrap"}},p.title||"Sem título"),
       el("button",{class:"btn","data-w":1,onclick:()=>{delete p.trashed;if(p.parent&&!page(p.parent))p.parent=null;save(p);closePop();renderAll();}},"Restaurar"),
-      el("button",{class:"btn","data-w":1,title:"Excluir para sempre","aria-label":"Excluir para sempre",onclick:()=>{purge(p.id);closePop();renderAll();}},icon("x"))))]);
+      el("button",{class:"btn","data-w":1,title:"Excluir para sempre","aria-label":"Excluir para sempre",onclick:()=>{purgeAll([p]);closePop();renderAll();}},icon("x"))))]);
 }
 function accountMenu(anchor){
   const roleName={admin:"Administrador",editor:"Editor",leitor:"Leitor"}[S.role]||"Editor";

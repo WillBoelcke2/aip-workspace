@@ -263,3 +263,7 @@ Os tipos das colunas são detectados sozinhos (número, data, link, caixa de sel
 ### Páginas do Notion e Markdown
 
 O mesmo **Importar arquivo** também aceita um documento inteiro: o JSON de uma página do Notion (com os blocos em `children`) ou um arquivo **Markdown** (`.md`). Títulos, parágrafos, listas, checklists (com o que já estava marcado), citações e destaques viram blocos da página. Cada tabela do documento vira uma base dentro da página, com o nome do título que vem antes dela. Se a página aberta estiver vazia, ela recebe o conteúdo; senão, o documento entra como uma página nova dentro dela.
+
+## Esvaziar a lixeira
+
+Na **Lixeira**, o botão **Esvaziar lixeira** exclui para sempre tudo o que está lá (as páginas e o que há dentro delas). Ele pede uma confirmação: o primeiro clique mostra quantos itens serão excluídos, o segundo exclui. Não há Ctrl+Z para isso; o que resta é o backup diário, guardado por 30 dias. Reuniões importadas pelo robô das atas e excluídas para sempre não voltam a ser importadas.

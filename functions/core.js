@@ -39,7 +39,7 @@ function workspace(pages, members) {
   const meetDb = () => { const d = page("reunioes"); return d && alive(d) && d.kind === "db" ? d : dbs().find(x => norm(x.title) === "reunioes"); };
   const taskDb = () => dbs().find(d => d.tpl === "tarefas");
   const teamDb = () => { const d = page("equipes"); return d && alive(d) && d.kind === "db" ? d : dbs().find(x => x.tpl === "equipes"); };
-  const seen = id => pages.has(ataId(id)) || [...pages.values()].some(p => p.gdoc === id || (Array.isArray(p.gdocs) && p.gdocs.includes(id)));
+  const seen = id => pages.has(ataId(id)) || [...pages.values()].some(p => p.gdoc === id || (Array.isArray(p.gdocs) && p.gdocs.includes(id)) || (Array.isArray(p.skipDocs) && p.skipDocs.includes(id)));
   // semelhança entre tarefas, para não repetir a mesma ação em reuniões seguidas
   const toks = t => [...new Set(norm(t).split(/[^a-z0-9]+/).filter(x => x.length > 2))];
   const jac = (a, b) => { if (!a.length || !b.length) return 0; const s = new Set(a); const n = b.filter(x => s.has(x)).length; return n / (a.length + b.length - n); };
