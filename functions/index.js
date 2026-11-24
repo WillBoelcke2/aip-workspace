@@ -65,10 +65,10 @@ exports.atasBot = onSchedule({ schedule: "0 6 * * *", timeZone: "America/Sao_Pau
         if (!er.ok) { failed.set(f.id, (f.name || "").slice(0, 60) + ": " + (await er.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 140)); continue; }
         tried.add(f.id); failed.delete(f.id);
         const owner = (f.owners && f.owners[0] && f.owners[0].emailAddress) || m.id;
-        const { docs, why } = ws.build(f, await er.text(), owner, "bot");
+        const { docs, why, tarefas, reuniao } = ws.build(f, await er.text(), owner, "bot");
         if (!docs.length) { pulo(why === "private" ? "reservadas (1:1 ou menos de 3 pessoas)" : why === "empty" ? "sem resumo nem próximas etapas" : why === "seen" ? "já importadas" : String(why)); continue; }
         const batch = db.batch(); docs.forEach(d => batch.set(db.collection("pages").doc(d.id), d)); await batch.commit();
-        stat.atas++; stat.tarefas += docs.length - 1;
+        if (reuniao) stat.atas++; else pulo("segunda anotação da mesma reunião (juntada)"); stat.tarefas += tarefas || 0;
       }
     } catch (e) { stat.erros[m.id.split("@")[0]] = String(e.message || e).slice(0, 160); }
   }

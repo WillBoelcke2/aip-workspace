@@ -16,7 +16,8 @@ function parse(name, md) {
   md.split(/\r?\n/).forEach(l => { const h = /^#{2,3}\s+(.*)$/.exec(l); if (h) { const k = norm(un(h[1])); cur = /^resumo|^summary/.test(k) ? "sum" : /^decis/.test(k) ? "dec" : /^proxim|^suggested next|^next steps|^etapas/.test(k) ? "next" : /^detal|^details/.test(k) ? "det" : cur === "dec" ? "dec" : ""; return; } if (cur) (sec[cur] = sec[cur] || []).push(l); });
   const bl = k => (sec[k] || []).map(l => /^\s*[-*•]\s+(.*)$/.exec(l)).filter(Boolean).map(m => un(m[1])).filter(Boolean);
   const summary = un((sec.sum || []).join("\n").split(/\n\s*\n/).map(x => x.trim()).filter(Boolean)[0] || "");
-  const steps = bl("next").map(t => { const m = /^\[([^\]]+)\]\s*(.*)$/.exec(t); const who = m ? m[1].trim() : "", rest = m ? m[2] : t; const i = rest.indexOf(": "); return { who, title: (i > 0 && i < 90 ? rest.slice(0, i) : rest).trim(), desc: i > 0 && i < 90 ? rest.slice(i + 2).trim() : "" }; }).filter(x => x.title);
+  const cl = x => x.replace(/[{}]/g, "").replace(/\s+/g, " ").trim();
+  const steps = bl("next").map(t => { t = t.replace(/^\[[ xX]?\]\s*/, ""); const m = /^\[([^\]]+)\]\s*(.*)$/.exec(t); const who = m ? m[1].trim() : "", rest = m ? m[2] : t; const i = rest.indexOf(": "); return { who, title: cl(i > 0 && i < 90 ? rest.slice(0, i) : rest), desc: i > 0 && i < 90 ? rest.slice(i + 2).trim() : "" }; }).filter(x => x.title);
   return { title, date, guests, summary, decisions: bl("dec"), steps };
 }
 const gloss = d => (Array.isArray(d && d.gloss) ? d.gloss : []).map(l => String(l).split("=").map(x => x.trim())).filter(g => g.length === 2 && g[0] && g[1]);
@@ -38,7 +39,12 @@ function workspace(pages, members) {
   const meetDb = () => { const d = page("reunioes"); return d && alive(d) && d.kind === "db" ? d : dbs().find(x => norm(x.title) === "reunioes"); };
   const taskDb = () => dbs().find(d => d.tpl === "tarefas");
   const teamDb = () => { const d = page("equipes"); return d && alive(d) && d.kind === "db" ? d : dbs().find(x => x.tpl === "equipes"); };
-  const seen = id => pages.has(ataId(id)) || [...pages.values()].some(p => p.gdoc === id);
+  const seen = id => pages.has(ataId(id)) || [...pages.values()].some(p => p.gdoc === id || (Array.isArray(p.gdocs) && p.gdocs.includes(id)));
+  // semelhança entre tarefas, para não repetir a mesma ação em reuniões seguidas
+  const toks = t => [...new Set(norm(t).split(/[^a-z0-9]+/).filter(x => x.length > 2))];
+  const jac = (a, b) => { if (!a.length || !b.length) return 0; const s = new Set(a); const n = b.filter(x => s.has(x)).length; return n / (a.length + b.length - n); };
+  const bodyOf = r => ((r.blocks || []).find(b => b.t === "p" && b.h) || {}).h || "";
+  const sameTask = (r, x) => { const kt = toks(r.title), xt = toks(x.title); if (!kt.length || jac(kt, xt) < 0.99) return false; const d1 = toks(String(bodyOf(r)).replace(/<[^>]+>/g, " ")), d2 = toks(x.desc || ""); return !d1.length || !d2.length || jac(d1, d2) >= 0.5; };
   const who = (name, guests, opts) => {
     const n = norm(name); if (!n || /^(o grupo|grupo|todos|equipe|time|the group|everyone)$/.test(n)) return null;
     const g = guests.find(x => norm(x.name) === n), mb = g && members.find(m => m.id === g.email);
@@ -63,30 +69,42 @@ function workspace(pages, members) {
     const B = (t, h) => ({ id: rid(), t, h });
     const dp = props(mdb).find(p => p.type === "date"), pp = props(mdb).find(p => p.type === "multi");
     const row = Object.assign({ id, kind: "page", title: fx(a.title) + " — " + fmtDate(a.date), parent: mdb.id, order: ((kids(mdb.id).at(-1) || {}).order || 0) + 1, props: {}, blocks: [], gdoc: file.id, src: "ata-bot" }, base(mdb));
+    const twin = kids(mdb.id).find(r => r.id !== id && norm(r.title) === norm(row.title));
     if (dp) row.props[dp.id] = a.date;
     if (pp) { const ids = a.guests.map(g => who(g.name, a.guests, pp.options || [])).filter(Boolean).map(o => o.id); if (ids.length) row.props[pp.id] = [...new Set(ids)]; }
     if (a.summary) row.blocks.push(B("h2", "Resumo"), B("p", esc(fx(a.summary))));
     if (a.decisions.length) { row.blocks.push(B("h2", "Decisões")); a.decisions.forEach(x => row.blocks.push(B("ul", esc(fx(x))))); }
     row.blocks.push(B("h2", "Ata completa"), B("p", '<a href="https://docs.google.com/document/d/' + encodeURIComponent(file.id) + '/edit">Abrir as anotações do Gemini</a>'), B("p", ""));
-    out.push(row);
+    // segunda anotação da mesma reunião (mesmo título e dia): não cria outra linha; só registra o documento e aproveita as tarefas novas
+    const meet = twin ? Object.assign({}, twin, { gdocs: [...new Set([...(twin.gdocs || []), file.id])], ts: now }) : row;
+    if (twin && !(twin.blocks || []).some(b => String(b.h || "").includes(file.id))) { const bs = (twin.blocks || []).slice(); while (bs.length && bs[bs.length - 1].t === "p" && !bs[bs.length - 1].h) bs.pop(); meet.blocks = bs.concat([B("p", '<a href="https://docs.google.com/document/d/' + encodeURIComponent(file.id) + '/edit">Abrir a segunda anotação do Gemini</a>'), B("p", "")]); }
+    out.push(meet);
+    let novas = 0;
     if (td) {
       const wp = props(td).find(p => p.type === "person"), du = props(td).find(p => p.type === "date" && !/in[ií]cio/i.test(p.name)), st = props(td).find(p => p.type === "status");
       const rel = props(td).find(p => p.type === "relation" && p.db === mdb.id), tdb = teamDb(), tr = tdb && props(td).find(p => p.type === "relation" && p.db === tdb.id);
       const opts = wp ? wp.options || [] : [], tm = team(a.title), lead = leader(tm, opts), fallback = byEmail(ownerEmail, opts);
       const last = (kids(td.id).at(-1) || {}).order || 0;
+      const ap = props(td).find(p => p.type === "text" && /^apoio/i.test(p.name || "")), closed = r => { const o = st && (st.options || []).find(o => o.id === (r.props || {})[st.id]); return !!o && /conclu|cancel|feit|done/i.test(norm(o.name)); };
+      const open = kids(td.id).filter(r => !closed(r)), mid = meet.id;
       a.steps.forEach((x, i) => {
         const rid2 = "at-" + id.slice(4, 40) + "-" + i; if (pages.has(rid2)) return;
-        const o = who(x.who, a.guests, opts) || lead || fallback;
+        const names = String(x.who || "").split(/\s*(?:,|;|\/|&|\be\b)\s*/).map(n => n.trim()).filter(Boolean), found = names.map(n => who(n, a.guests, opts)).filter(Boolean);
+        const o = found[0] || lead || fallback, help = names.filter(n => { const w = who(n, a.guests, opts); return !w || (found[0] && w.id !== found[0].id); }).filter(n => !/^(o grupo|grupo|todos|equipe|time)$/i.test(norm(n)));
+        // a mesma ação já está aberta para a mesma pessoa (ou veio desta mesma reunião): não repete, só liga a reunião à tarefa existente
+        const dupe = open.concat(out.slice(1)).find(r => sameTask(r, x) && (!wp || !o || (r.props || {})[wp.id] === o.id || (rel && ((r.props || {})[rel.id] || []).includes(mid))));
+        if (dupe) { if (rel && !((dupe.props || {})[rel.id] || []).includes(mid)) { const d2 = out.includes(dupe) ? dupe : Object.assign({}, dupe, { props: Object.assign({}, dupe.props), ts: now }); d2.props[rel.id] = [...((dupe.props || {})[rel.id] || []), mid]; if (!out.includes(dupe)) out.push(d2); } return; }
         const r = Object.assign({ id: rid2, kind: "page", title: fx(x.title), parent: td.id, order: last + 1 + i, props: {}, blocks: x.desc ? [B("p", esc(fx(x.desc))), B("p", "")] : [], src: "ata:" + file.id }, base(td));
         if (wp && o) { r.props[wp.id] = o.id; r.asg = { [wp.id]: { by: "bot", name: "Bot de atas", ts: now } }; }
+        if (ap && help.length) r.props[ap.id] = help.join(", ");
         if (du) r.props[du.id] = due(x.title + " " + x.desc, a.date);
         if (st && st.options && st.options[0]) r.props[st.id] = st.options[0].id;
-        if (rel) r.props[rel.id] = [id]; if (tr && tm) r.props[tr.id] = [tm.id];
-        out.push(r);
+        if (rel) r.props[rel.id] = [mid]; if (tr && tm) r.props[tr.id] = [tm.id];
+        out.push(r); novas++;
       });
     }
     out.forEach(d => pages.set(d.id, d));
-    return { docs: out, why: "ok" };
+    return { docs: out, why: "ok", tarefas: novas, reuniao: !twin };
   }
   return { build, seen, meetDb };
 }

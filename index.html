@@ -2303,7 +2303,7 @@ function ataParse(name,md){
   const sec={};let cur="";md.split(/\r?\n/).forEach(l=>{const h=/^#{2,3}\s+(.*)$/.exec(l);if(h){const k=norm(un(h[1]));cur=/^resumo|^summary/.test(k)?"sum":/^decis/.test(k)?"dec":/^proxim|^suggested next|^next steps|^etapas/.test(k)?"next":/^detal|^details/.test(k)?"det":cur==="dec"?"dec":"";return;}if(cur)(sec[cur]=sec[cur]||[]).push(l);});
   const bl=k=>(sec[k]||[]).map(l=>/^\s*[-*•]\s+(.*)$/.exec(l)).filter(Boolean).map(m=>un(m[1])).filter(Boolean);
   const summary=un((sec.sum||[]).join("\n").split(/\n\s*\n/).map(x=>x.trim()).filter(Boolean)[0]||"");
-  const steps=bl("next").map(t=>{const m=/^\[([^\]]+)\]\s*(.*)$/.exec(t);let who=m?m[1].trim():"",rest=m?m[2]:t;const i=rest.indexOf(": ");return{who,title:(i>0&&i<90?rest.slice(0,i):rest).trim(),desc:i>0&&i<90?rest.slice(i+2).trim():""};}).filter(x=>x.title);
+  const steps=bl("next").map(t=>{t=t.replace(/^\[[ xX]?\]\s*/,"");const m=/^\[([^\]]+)\]\s*(.*)$/.exec(t);let who=m?m[1].trim():"",rest=m?m[2]:t;const i=rest.indexOf(": ");return{who,title:(i>0&&i<90?rest.slice(0,i):rest).replace(/[{}]/g,"").trim(),desc:i>0&&i<90?rest.slice(i+2).trim():""};}).filter(x=>x.title);
   return{title,date,guests,summary,decisions:bl("dec"),steps};
 }
 function ataGloss(d){return(Array.isArray(d&&d.gloss)?d.gloss:[]).map(l=>String(l).split("=").map(x=>x.trim())).filter(g=>g.length===2&&g[0]&&g[1]);} // guardado como texto "errado = certo": o Firestore não aceita lista dentro de lista
@@ -2668,7 +2668,7 @@ function dashTip(text,e){let t=$("#dtip");if(!text){if(t)t.hidden=true;return;}
   t.textContent=text;t.hidden=false;const w=t.offsetWidth,x=Math.min(window.innerWidth-w-8,Math.max(8,e.clientX+12));t.style.left=x+"px";t.style.top=Math.max(8,e.clientY-34)+"px";}
 
 /* ============ aviso de versão nova ============ */
-const BUILD="1795523731";let newer=false;
+const BUILD="1795527606";let newer=false;
 async function checkBuild(){if(newer||!/^https?:/.test(location.protocol))return;
   try{const r=await fetch("version.txt?"+Date.now(),{cache:"no-store"});if(!r.ok)return;const v=(await r.text()).trim();
     if(v&&v!==BUILD){newer=true;const t=$("#toast");clearTimeout(toastT);t.textContent="";t.append("Há uma versão nova do workspace. ",el("button",{style:{color:"var(--mint)","font-weight":"600","margin-left":"8px"},onclick:()=>location.reload()},"Atualizar"));t.hidden=false;}}catch(_){}}
